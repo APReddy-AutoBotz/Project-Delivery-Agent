@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createDatabase, DatabaseAuthorityRepository, DatabaseCanonicalProjectRepository,
   DatabaseProjectFactRepository, DatabaseProjectUpdateRepository } from "../../packages/data/dist/index.js";
+import { canonicalProjectCreateSchema } from "../../packages/domain/dist/index.js";
 import { canonicalFixture } from "../../scripts/acceptance/canonical-projects.mjs";
 
 test("PMO sees current update obligations, stale facts and conflicts only on shared projects", async ({ page, request }) => {
@@ -18,13 +19,13 @@ test("PMO sees current update obligations, stale facts and conflicts only on sha
   let projectId: string;
   try {
     const atlas = await db.project.findFirstOrThrow({ where: { customerId: fixture.customerId, id: fixture.projectId } });
-    const hidden = await db.portfolio.create({ data: { customerId: fixture.customerId, name: "PMO restricted portfolio" } });
+    const hidden = await db.portfolio.create({ data: { id: randomUUID(), customerId: fixture.customerId, name: "PMO restricted portfolio" } });
     await db.accessGrant.create({ data: { customerId: fixture.customerId, subject: fixture.writer.subject,
       scopeType: "portfolio", scopeId: hidden.id, role: "pmo_admin" } });
-    await repository.createProject(fixture.writer, { ...canonicalFixture(hidden.id),
-      code: "PMO-HIDDEN", name: "Unshared portfolio project" }, randomUUID());
-    const created = await repository.createProject(fixture.admin, { ...canonicalFixture(atlas.portfolioId),
-      code: "PMO-UPDATE", name: "Portfolio update review" }, randomUUID());
+    await repository.createProject(fixture.writer, canonicalProjectCreateSchema.parse({ ...canonicalFixture(hidden.id),
+      code: "PMO-HIDDEN", name: "Unshared portfolio project" }), randomUUID());
+    const created = await repository.createProject(fixture.admin, canonicalProjectCreateSchema.parse({ ...canonicalFixture(atlas.portfolioId),
+      code: "PMO-UPDATE", name: "Portfolio update review" }), randomUUID());
     projectId = created.id;
     const observedAt = new Date().toISOString();
     const add = async (actor: typeof fixture.admin, factType: string, revision: number, value: string) => {
@@ -46,7 +47,9 @@ test("PMO sees current update obligations, stale facts and conflicts only on sha
     await updates.setPolicy(fixture.admin, projectId, { expectedRevision: 0, timeZone: "UTC", freshnessWindowSeconds: 1,
       requiredFacts: [{ factType: "project.status", label: "Delivery status" },
         { factType: "project.forecast", label: "Forecast position" }, { factType: "project.cost", label: "Cost update" }],
-      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false }, randomUUID());
+      responsibleSubject: "synthetic-owner-4", scheduledScanEnabled: false,
+      reminderBusinessDayOffsets: [], escalationAfterBusinessDays: 0, escalationRecipientSubject: null,
+      quietHoursStartLocal: null, quietHoursEndLocal: null }, randomUUID());
   } finally { await db.$disconnect(); }
 
   const endpoint = "/api/pmo/portfolio-update-freshness";
