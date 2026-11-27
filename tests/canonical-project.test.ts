@@ -111,13 +111,13 @@ describe("INT-MOD-001 / FR-MOD-001/002/004/005/007 canonical request invariants"
       }));
     expect(canonicalProjectCreateSchema.safeParse(many).success).toBe(false);
   });
-  it("recognizes the explicitly configured sixth role, never a responsibility label", () => {
+  it("recognizes configured portfolio and Scrum Master roles and rejects responsibility labels", () => {
     const actor = {
       subject: "synthetic",
       customerId: "10000000-0000-4000-8000-000000000001",
       roles: [...roles],
     };
-    expect(canonicalActorSchema.parse(actor).roles).toHaveLength(6);
+    expect(canonicalActorSchema.parse(actor).roles).toEqual(expect.arrayContaining(["portfolio_manager", "scrum_master"]));
     expect(
       canonicalActorSchema.safeParse({ ...actor, roles: ["SPONSOR"] }).success,
     ).toBe(false);
