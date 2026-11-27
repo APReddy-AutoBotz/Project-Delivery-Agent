@@ -263,6 +263,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect(withheld.status()).toBe(200);
     expect(await withheld.json()).toMatchObject({ jiraBlocker: null, schedule: complete.schedule });
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
+    await expect(answer.getByRole("link", { name: "Schedule evidence" })).toBeVisible();
     await expect(answer.getByText("The synthetic Jira blocker ATLAS-248 is open.", { exact: true })).toHaveCount(0);
     await expect(answer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
   } finally {

@@ -98,18 +98,19 @@ export async function seedEscalationHistory(databaseUrl, { isolatedCustomer = fa
       customerId, subject: "leader-atlas", scopeType: "project", scopeId: projectId, role: "leadership",
     } });
     if (jiraIssue) {
-      const { admitSyntheticSourceInputs, ingestSyntheticJiraIssues } = await import("./golden-source-observations.mjs");
+      const { admissionSubject, admitSyntheticSourceInputs, ingestSyntheticJiraIssues } = await import("./golden-source-observations.mjs");
       const retentionAdmin = { customerId, subject: "atlas-demo-retention", roles: ["system_admin"] };
-      await db.accessGrant.create({ data: {
-        customerId, subject: retentionAdmin.subject, scopeType: "project", scopeId: projectId, role: "system_admin",
-      } });
+      await db.accessGrant.createMany({ data: [
+        { customerId, subject: retentionAdmin.subject, scopeType: "project", scopeId: projectId, role: "system_admin" },
+        { customerId, subject: admissionSubject, scopeType: "project", scopeId: projectId, role: "project_manager" },
+      ] });
       const ingestion = new DatabaseIngestionRepository(db, new CredentialVault(randomBytes(32).toString("base64")));
       await ingestion.setRetention(retentionAdmin, { retentionHours: 24 }, randomUUID());
       const sourceReaders = [admin.subject, pm.subject, "leader-atlas"];
       spreadsheetIntake = await reviewAtlasSpreadsheet(ingestion, admin, projectId, sourceReaders);
       const { sourceId, receiptId } = await ingestSyntheticJiraIssues(db, {
         actor: admin, projectId, origin: jiraOrigin, jiraProject: jiraIssue.fields.project.key,
-        readers: sourceReaders, issues: [jiraIssue],
+        readers: [...sourceReaders, admissionSubject], issues: [jiraIssue],
       });
       const mappings = await db.$queryRaw`
         SELECT mapping.id AS "mappingId", outcome.ordinal, stream.id AS "streamId"
