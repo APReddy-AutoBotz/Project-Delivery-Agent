@@ -343,7 +343,9 @@ function exercise(profile) {
   };
   const db = container(database);
   assert.deepEqual(db.HostConfig.PortBindings ?? {}, {});
-  checkSocketBoundary(container("api"), container("xlsx-decoder"), project);
+  const api = container("api");
+  checkSocketBoundary(api, container("xlsx-decoder"), project);
+  assert(!api.Config.Env.some((entry) => entry.startsWith("PDAA_REPLY_INTERPRETATION_FILE=")));
   const client = JSON.parse(
     compose(
       "packaged-api-preview",
@@ -409,6 +411,9 @@ function exercise(profile) {
   ));
   const journey = goldenBrowser("golden-reconciliation", admitted);
   assert.equal(journey.projectAndFactRevocations, true);
+  assert.equal(journey.noAi.pptxRendered, true);
+  assert.match(journey.noAi.staleUpdateAssessedAt, /^\d{4}-\d{2}-\d{2}T/u);
+  assert.match(journey.noAi.healthAssessmentId, /^[a-f0-9-]{36}$/u);
   const golden = { ...admitted, ...journey };
   assert.deepEqual(ownerProof("golden-withdraw-jira", "golden-withdraw-jira", JSON.stringify(golden)), { active: false });
   assert.deepEqual(goldenBrowser("golden-jira-denial", golden), { jiraScopeRevocation: true });
@@ -466,6 +471,7 @@ function exercise(profile) {
     golden003: {
       ...goldenProof, projectAndFactRevocations: true, jiraScopeRevocation: true, originalEvidenceRedelivered: true,
     },
+    noAi: { providerConfigured: false, ...journey.noAi },
     recovery: { encrypted: true, ...recovery },
   };
 }

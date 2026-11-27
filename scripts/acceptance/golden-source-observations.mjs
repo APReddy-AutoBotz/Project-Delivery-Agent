@@ -100,6 +100,11 @@ export async function prepareGoldenWorkbook(pool, database, customerId) {
         subject: manager,
         displayName: "Synthetic project manager",
       },
+      {
+        role: "RESPONSIBLE_OWNER",
+        subject: manager,
+        displayName: "Synthetic project manager",
+      },
     ];
     project.workItems = workKeys.map((key) => ({
       ...project.workItems[0],
