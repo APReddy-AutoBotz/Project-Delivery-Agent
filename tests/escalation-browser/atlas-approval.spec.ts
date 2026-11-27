@@ -19,6 +19,7 @@ async function firstSlide(file: string | Buffer) {
 }
 
 test("Atlas reply, PM delay evidence and distributed final report share the same evidence", async ({ page, request }) => {
+  test.setTimeout(45_000);
   const fixture = JSON.parse(readFileSync(process.env.PDAA_ESCALATION_FIXTURE_PATH!, "utf8"));
   const projectPath = `/api/projects/${fixture.projectId}`;
   const receiptPath = projectPath + "/atlas-comment-receipt";
@@ -866,8 +867,11 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     approval: { state: "PENDING", decidedAt: null } });
   await expect(draftPanel).toContainText("Awaiting PM approval");
   const managerReportPath = `/api/projects/${allowedProjectId}/management-report-approval`;
+  const deliveryPath = managerReportPath + "/delivery";
+  const deliveryCommand = { snapshotId: savedReport.snapshotId, requestId: pendingReport.approval.requestId };
   const decisionCommand = { snapshotId: savedReport.snapshotId, requestId: pendingReport.approval.requestId, decision: "APPROVED" };
   expect((await request.post(managerReportPath, { headers: leaderHeaders, data: decisionCommand })).status()).toBe(404);
+  expect((await request.post(deliveryPath, { headers: managerHeaders, data: deliveryCommand })).status()).toBe(409);
   expect((await request.post(managerReportPath, { headers: managerHeaders,
     data: { ...decisionCommand, snapshotId: randomUUID() } })).status()).toBe(409);
   const repeatHandoff = await request.post(approvalRequestPath, { headers: leaderHeaders, data: { snapshotId: savedReport.snapshotId } });
@@ -886,10 +890,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const latestPending = await request.get(managerReportPath, { headers: managerHeaders });
   expect(latestPending.status()).toBe(200);
   expect(await latestPending.json()).toMatchObject({ snapshotId: followingSnapshotId, approval: { state: "PENDING" } });
-  const rejectFollowing = await request.post(managerReportPath, { headers: managerHeaders,
-    data: { snapshotId: followingSnapshotId, requestId: followingApproval.requestId, decision: "REJECTED" } });
-  expect(rejectFollowing.status()).toBe(200);
-  expect(await rejectFollowing.json()).toMatchObject({ snapshotId: followingSnapshotId, approval: { state: "REJECTED" } });
+  const approveFollowing = await request.post(managerReportPath, { headers: managerHeaders,
+    data: { snapshotId: followingSnapshotId, requestId: followingApproval.requestId, decision: "APPROVED" } });
+  expect(approveFollowing.status()).toBe(200);
+  expect(await approveFollowing.json()).toMatchObject({ snapshotId: followingSnapshotId, approval: { state: "APPROVED" } });
 
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.goto("/");
@@ -909,4 +913,62 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(finalProjectSlide).toContain("Final • Approved");
   expect(finalProjectSlide).toContain(savedReport.snapshotId);
   expect(finalProjectSlide).toContain(savedReport.draft.asOf);
+
+  const recipientGrant = { customerId: fixture.customerId, subject: "leader-atlas",
+    scopeType: "project", scopeId: allowedProjectId, role: "leadership" };
+  const deliveryDb = createDatabase(target.toString());
+  try {
+    const revoked = await deliveryDb.accessGrant.deleteMany({ where: recipientGrant });
+    expect(revoked.count).toBe(1);
+    expect((await request.post(deliveryPath, { headers: managerHeaders, data: deliveryCommand })).status()).toBe(404);
+  } finally {
+    await deliveryDb.accessGrant.create({ data: recipientGrant });
+    await deliveryDb.$disconnect();
+  }
+  const deliveredVersion = page.waitForResponse((response) => response.url().endsWith(deliveryPath));
+  await selectedProjectApproval.getByRole("button", { name: "Deliver to requesting leader" }).click();
+  const sentReport = await deliveredVersion;
+  expect(sentReport.status()).toBe(200);
+  const deliveredReport = await sentReport.json();
+  expect(deliveredReport).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft,
+    approval: finalProjectReport.approval, delivery: { ...deliveryCommand, id: expect.any(String), deliveredAt: expect.any(String) } });
+  await expect(selectedProjectApproval).toContainText(`Receipt ${deliveredReport.delivery.id}`);
+  await expect(selectedProjectApproval).toContainText(followingSnapshotId);
+  await expect(selectedProjectApproval.getByRole("button", { name: "Deliver to requesting leader" })).toBeVisible();
+  const replayDelivery = await request.post(deliveryPath, { headers: managerHeaders, data: deliveryCommand });
+  expect(replayDelivery.status()).toBe(200);
+  expect(await replayDelivery.json()).toMatchObject({ delivery: deliveredReport.delivery });
+
+  const latestDraft = await request.get(`${draftPath}?snapshotId=latest`, { headers: leaderHeaders });
+  expect(latestDraft.status()).toBe(200);
+  expect(await latestDraft.json()).toMatchObject({ snapshotId: followingSnapshotId });
+  const updatedReportDb = createDatabase(target.toString());
+  try {
+    await new DatabaseProjectUpdateRepository(updatedReportDb).assess(fixture.admin, allowedProjectId, randomUUID());
+  } finally { await updatedReportDb.$disconnect(); }
+  const currentReportAfterDelivery = await request.get(draftPath, { headers: leaderHeaders });
+  expect(currentReportAfterDelivery.status()).toBe(200);
+  const currentFactsAfterDelivery = (await currentReportAfterDelivery.json()).draft;
+  expect(currentFactsAfterDelivery.updateFreshness.assessmentId).not.toBe(savedReport.draft.updateFreshness.assessmentId);
+
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await page.goto("/");
+  await page.getByRole("button", { name: /Leadership/ }).click();
+  await page.getByRole("button", { name: /Second synthetic project/ }).click();
+  const inboxResponse = page.waitForResponse((response) => response.url().endsWith(draftPath + "?snapshotId=delivered"));
+  await draftPanel.getByRole("button", { name: "Open delivered report" }).click();
+  const deliveredInbox = await inboxResponse;
+  expect(deliveredInbox.status()).toBe(200);
+  const deliveredOutput = await deliveredInbox.json();
+  expect(deliveredOutput).toMatchObject({ snapshotId: savedReport.snapshotId, draft: savedReport.draft, delivery: deliveredReport.delivery });
+  await expect(draftPanel).toContainText(deliveredReport.delivery.id);
+  await draftEmail.getByText("Leadership email preview").click();
+  await expect(draftEmail).toContainText(savedReport.snapshotId);
+  await expect(draftEmail).toContainText("Final · Approved");
+  const deliveredSlide = await firstSlide(Buffer.from(deliveredOutput.powerpointBase64, "base64"));
+  expect(deliveredSlide).toContain("Final • Approved • Delivered in-app");
+  for (const highlight of deliveredOutput.highlights) {
+    await expect(draftEmail).toContainText(highlight);
+    expect(deliveredSlide).toContain(highlight);
+  }
 });

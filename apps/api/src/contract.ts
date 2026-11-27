@@ -91,6 +91,7 @@ import {
   projectManagementSnapshotSelectorSchema,
   projectReportApprovalRequestSchema,
   projectReportDecisionSchema,
+  projectReportVersionSchema,
   atlasDelayCommandSchema,
   atlasDelayAssessmentSchema,
   atlasDelayClarificationCommandSchema,
@@ -310,6 +311,10 @@ export const contracts: Record<string, RouteContract> = {
   },
   "post /api/projects/{id}/management-report-approval": {
     status: 200, request: projectReportDecisionSchema, response: projectManagementDraftOutputSchema,
+    parameters: { id: z.uuid() }, errors: [400, 404, 409, 413, 415, 503],
+  },
+  "post /api/projects/{id}/management-report-approval/delivery": {
+    status: 200, request: projectReportVersionSchema, response: projectManagementDraftOutputSchema,
     parameters: { id: z.uuid() }, errors: [400, 404, 409, 413, 415, 503],
   },
   "post /api/projects/{id}/atlas-delay-confirmation": {

@@ -266,7 +266,7 @@ export function decodeAtlasManagementOutput(value: unknown, projectId: string): 
 }
 
 export function decodeProjectManagementDraft(value: unknown, projectId: string): ProjectManagementDraftOutput | null {
-  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId", "approval"]) ||
+  if (!object(value) || !keys(value, ["draft", "highlights", "livePath", "powerpointBase64"], ["snapshotId", "approval", "delivery"]) ||
       (value.snapshotId !== undefined && !uuid(value.snapshotId))) return null;
   const { draft, highlights, livePath, powerpointBase64 } = value;
   if (!object(draft) || !keys(draft, ["projectId", "asOf", "schedule", "updateFreshness", "project", "approvalState", "reportingPeriod"]) ||
@@ -288,6 +288,11 @@ export function decodeProjectManagementDraft(value: unknown, projectId: string):
         (approval.state !== "APPROVED" && approval.state !== "REJECTED") || !instant(approval.decidedAt) ||
         Date.parse(approval.decidedAt) < Date.parse(approval.requestedAt)) return null;
   }
+  const delivery = value.delivery;
+  if (delivery !== undefined && (!object(approval) || approval.state !== "APPROVED" || !instant(approval.decidedAt) ||
+      !object(delivery) || !keys(delivery, ["id", "snapshotId", "requestId", "deliveredAt"]) || !uuid(delivery.id) ||
+      delivery.snapshotId !== value.snapshotId || delivery.requestId !== approval.requestId ||
+      !instant(delivery.deliveredAt) || Date.parse(delivery.deliveredAt) < Date.parse(approval.decidedAt))) return null;
   return value as ProjectManagementDraftOutput;
 }
 

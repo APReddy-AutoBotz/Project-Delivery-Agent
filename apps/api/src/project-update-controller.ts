@@ -30,12 +30,15 @@ import {
   projectManagementSnapshotSelectorSchema,
   projectReportApprovalRequestSchema,
   projectReportDecisionSchema,
+  projectReportVersionSchema,
   ingestionReassessmentRetrySchema,
   ingestionReassessmentPageRequestSchema,
   ProjectUpdateError,
   type Actor,
   type ProjectManagementDraft,
+  type ProjectManagementSnapshot,
   type ProjectReportApproval,
+  type ProjectReportDelivery,
   type ProjectUpdateRepository,
 } from "@pdaa/domain";
 
@@ -77,6 +80,7 @@ export const unavailableProjectUpdateRepository: ProjectUpdateRepository = {
   async requestProjectReportApproval() { throw new ProjectUpdateError("DENIED"); },
   async projectReportForManager() { throw new ProjectUpdateError("DENIED"); },
   async decideProjectReportApproval() { throw new ProjectUpdateError("DENIED"); },
+  async deliverProjectReport() { throw new ProjectUpdateError("DENIED"); },
   async atlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async createAtlasManagementSnapshot() { throw new ProjectUpdateError("DENIED"); },
   async requestAtlasReportApproval() { throw new ProjectUpdateError("DENIED"); },
@@ -187,7 +191,7 @@ export class ProjectUpdateController {
     const snapshotId = snapshot.data;
     if (snapshotId) {
       const saved = await this.run(() => this.repository.projectManagementSnapshot(actor, projectId, snapshotId));
-      return this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval);
+      return this.renderSavedManagementReport(saved);
     }
     return this.renderManagementDraft(await this.run(() => this.repository.projectManagementDraft(actor, projectId)));
   }
@@ -200,7 +204,7 @@ export class ProjectUpdateController {
     if (!expected.success) throw new HttpException("", 400);
     const saved = await this.run(() => this.repository.saveProjectManagementSnapshot(
       actor, this.projectId(rawId), expected.data, req.correlationId));
-    return this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval);
+    return this.renderSavedManagementReport(saved);
   }
 
   @Post("management-draft/approval-request")
@@ -211,14 +215,14 @@ export class ProjectUpdateController {
     if (!command.success) throw new HttpException("", 400);
     const saved = await this.run(() => this.repository.requestProjectReportApproval(
       actor, this.projectId(rawId), command.data.snapshotId, req.correlationId));
-    return this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval);
+    return this.renderSavedManagementReport(saved);
   }
 
   @Get("management-report-approval")
   async projectReportForManager(@Req() req: Request, @Param("id") rawId: string) {
     const actor = await this.actor(req);
     const saved = await this.run(() => this.repository.projectReportForManager(actor, this.projectId(rawId)));
-    return saved ? this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval) : null;
+    return saved ? this.renderSavedManagementReport(saved) : null;
   }
 
   @Post("management-report-approval")
@@ -237,11 +241,26 @@ export class ProjectUpdateController {
           { ...approval, state: "APPROVED", decidedAt: approval.requestedAt });
     }
     const saved = await this.run(() => this.repository.decideProjectReportApproval(actor, projectId, command.data, req.correlationId));
-    return this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval);
+    return this.renderSavedManagementReport(saved);
   }
 
-  private async renderManagementDraft(draft: ProjectManagementDraft, snapshotId?: string, approval?: ProjectReportApproval) {
-    try { return projectManagementDraftOutputSchema.parse(await renderProjectManagementDraft(draft, snapshotId, approval)); }
+  @Post("management-report-approval/delivery")
+  @HttpCode(200)
+  async deliverProjectReport(@Req() req: Request, @Param("id") rawId: string, @Body() body: unknown) {
+    const actor = await this.actor(req);
+    const command = projectReportVersionSchema.safeParse(body);
+    if (!command.success) throw new HttpException("", 400);
+    const saved = await this.run(() => this.repository.deliverProjectReport(actor, this.projectId(rawId), command.data, req.correlationId));
+    return this.renderSavedManagementReport(saved);
+  }
+
+  private renderSavedManagementReport(saved: ProjectManagementSnapshot) {
+    return this.renderManagementDraft(saved.draft, saved.snapshotId, saved.approval, saved.delivery);
+  }
+
+  private async renderManagementDraft(draft: ProjectManagementDraft, snapshotId?: string,
+    approval?: ProjectReportApproval, delivery?: ProjectReportDelivery) {
+    try { return projectManagementDraftOutputSchema.parse(await renderProjectManagementDraft(draft, snapshotId, approval, delivery)); }
     catch { throw new HttpException("", 503); }
   }
 

@@ -65,6 +65,16 @@ the executed Jira and spreadsheet intake, leadership delay answer, ranked
 blocker review, captured confirmation, report consistency and secure invitation
 cases to their test specifications.
 
+The normal project view now answers a leadership schedule question from the
+selected project's canonical dates and accessible saved freshness assessment.
+Leadership can also save and reopen a management draft with the same snapshot
+ID and facts in the dashboard, email preview and editable PowerPoint. The
+hosted browser proved that a newer policy leaves the saved draft intact and
+that revoked source access withholds it.
+[Leadership answer](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45971299850/job/140412121922) ·
+[Draft outputs](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45975672863/job/140426659055) ·
+[Saved snapshots](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45980015925/job/140441241277)
+
 The packaged Node 24.22.3 build passed post-merge checks. The six API, worker
 and operations scans no longer report the 11 targeted Node findings.
 [Node release evidence](exec-plans/EXEC-054-node-runtime-security-release.md#validation-evidence).
