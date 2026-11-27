@@ -67,13 +67,16 @@ tests:
   evidence: []
 - id: AI-UPD-005
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-UPD-005
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: An ambiguous response creates a focused clarification request and no material fact or write proposal
     is approved automatically.
-  evidence: []
+  evidence:
+  - tests/project-update-engagement.integration.test.ts
+  - tests/e2e/project-update-response.spec.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: CI-FND-001
   release: R1
   status: implemented

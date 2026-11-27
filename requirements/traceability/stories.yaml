@@ -494,9 +494,15 @@ stories:
   acceptance_criteria:
   - AC-EVD-006
   - AC-UPD-005
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/215
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/224
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/226
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-022
   epic: EPIC-06
   title: Implement approval diff and authority
@@ -580,6 +586,12 @@ stories:
   status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/110
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/222
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/247
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-026
   epic: EPIC-07
   title: Implement PM action queue

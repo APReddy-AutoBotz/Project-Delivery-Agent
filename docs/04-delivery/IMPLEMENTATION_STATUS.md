@@ -7,14 +7,15 @@ Updated: 2026-11-27
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                      12 |                     33 |      36.4% |
-| Total   |                      15 |                     38 |      39.5% |
+| R1      |                      13 |                     33 |      39.4% |
+| Total   |                      16 |                     38 |      42.1% |
 
 These counts reflect the accepted-story registry, including the
 [STORY-031 snapshot record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance),
 the [STORY-032 PowerPoint record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-powerpoint-software-acceptance),
-the [STORY-033 email digest record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-email-digest-software-acceptance)
-and the [STORY-025 recommendation record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#pm-queue-ordering-and-recommendation-framework-acceptance).
+the [STORY-033 email digest record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-email-digest-software-acceptance),
+the [STORY-025 recommendation record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#pm-queue-ordering-and-recommendation-framework-acceptance)
+and the [STORY-021 clarification record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#reply-clarification-and-confirmation-acceptance).
 Several open stories already have working components. Track the first usable
 workflow by its observable steps alongside the accepted-story count.
 

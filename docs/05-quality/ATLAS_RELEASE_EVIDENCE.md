@@ -146,3 +146,17 @@ tests. Acceptance takes effect after independent review, required hosted checks
 and merge. The role-specific GOLDEN-012 scenario remains under STORY-026.
 [Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422599) ·
 [Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46037767885/job/140637422110).
+
+## Reply clarification and confirmation acceptance
+
+STORY-021 covers the existing clarification and explicit interpretation
+confirmation workflow. Acceptance takes effect after independent review,
+required hosted checks and merge.
+
+| Criterion | Executed evidence |
+| --- | --- |
+| AC-UPD-005 | A reviewer requests a focused clarification after an ambiguous reply. An attempt to confirm that original reply is denied and no canonical fact version is created. The owner sees the question on the secure invitation and can correct the reply. Forecast and status clarification are tracked separately, so confirmation of one fact preserves the other open question. [Main clarification checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45883519852/job/140128425260) · [Main fact-specific checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45935364088/job/140297210252) |
+| AC-EVD-006 | Native confirmation checks bind the reviewer, audit timestamp and original response to the new fact version and evidence. The test reads the original retained text through its authorized evidence path, including reviewer-private and service-readable cases. [Main audit checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45928632248/job/140275843064) |
+
+Approved provider routing and customer email delivery are tracked in their
+respective acceptance criteria.
