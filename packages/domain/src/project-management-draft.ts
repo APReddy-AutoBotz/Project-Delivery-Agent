@@ -1,13 +1,23 @@
 import { z } from "zod";
-import { projectLeadershipFactsSchema } from "./project-leadership-answer.js";
+import { projectLeadershipFactsSchema, projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
 
-const projectLabel = z.string().min(1).max(160)
+const reportLabel = (max: number) => z.string().min(1).max(max)
   .refine((value) => value.trim().length > 0 && !/[\p{Cc}\p{Surrogate}]/u.test(value));
 
+export const projectReportDigestSchema = z.strictObject({
+  previousReport: z.strictObject({
+    snapshotId: z.uuid(), asOf: z.iso.datetime(), schedule: projectLeadershipScheduleSchema.nullable(),
+    freshnessState: projectLeadershipFactsSchema.shape.updateFreshness.unwrap().shape.state.nullable(),
+  }).nullable(),
+  decisions: z.array(z.strictObject({ key: reportLabel(48), title: reportLabel(160) })).max(3),
+  moreDecisions: z.boolean(),
+});
+
 export const projectManagementDraftSchema = projectLeadershipFactsSchema.extend({
-  project: z.strictObject({ code: projectLabel, name: projectLabel }),
+  project: z.strictObject({ code: reportLabel(160), name: reportLabel(160) }),
   approvalState: z.literal("DRAFT"),
   reportingPeriod: z.string().regex(/^\d{4}-(?:0[1-9]|1[0-2])$/u),
+  digest: projectReportDigestSchema.optional(),
 });
 export type ProjectManagementDraft = z.infer<typeof projectManagementDraftSchema>;
 
@@ -41,6 +51,7 @@ export const projectManagementDraftOutputSchema = z.strictObject({
   approval: projectReportApprovalSchema.optional(),
   delivery: projectReportDeliverySchema.optional(),
   highlights: z.array(z.string().min(1).max(400)).min(1).max(4),
+  digestHighlights: z.array(reportLabel(400)).min(2).max(8).optional(),
   livePath: z.string().min(1).max(64),
   powerpointBase64: z.string().max(160_000).regex(/^UEsDB[A-Za-z0-9+/]+={0,2}$/u)
     .refine((value) => value.length % 4 === 0),

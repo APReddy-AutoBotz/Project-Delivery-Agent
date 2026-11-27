@@ -15,6 +15,7 @@ const project = z.strictObject({
   blockerAge: blockerAgeAdviceSchema,
   pendingAtlasApproval: z.strictObject({ approvalId: z.uuid(), target: z.literal(atlasJiraBlockerKey),
     expiresAt: z.iso.datetime() }).optional(),
+  pendingProjectReport: z.strictObject({ snapshotId: z.uuid(), requestId: z.uuid(), requestedAt: z.iso.datetime() }).optional(),
 });
 const priority = z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
 const scheduleCategory = z.enum(["RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"]);
@@ -24,6 +25,8 @@ const pointer = z.discriminatedUnion("facet", [
   z.strictObject({ projectId: z.uuid(), facet: z.literal("UPDATE"), index: z.null(),
     key: z.literal("update-information"), priority: z.literal("MEDIUM"), category: z.literal("UPDATE_FOLLOW_UP") }),
   z.strictObject({ projectId: z.uuid(), facet: z.literal("ATLAS_APPROVAL"), index: z.null(),
+    key: z.uuid(), priority: z.literal("HIGH"), category: z.literal("APPROVAL") }),
+  z.strictObject({ projectId: z.uuid(), facet: z.literal("PROJECT_REPORT_APPROVAL"), index: z.null(),
     key: z.uuid(), priority: z.literal("HIGH"), category: z.literal("APPROVAL") }),
   z.strictObject({ projectId: z.uuid(), facet: z.literal("BLOCKER_AGE"), index: z.null(),
     key: z.literal("blocker-age"), priority: z.literal("MEDIUM"), category: z.literal("BLOCKER_REVIEW") }),
@@ -57,6 +60,10 @@ function ranked(projects: readonly ProjectObservation[], rankBlockers: boolean):
       projectId, facet: "ATLAS_APPROVAL", index: null, key: observation.pendingAtlasApproval.approvalId,
       priority: "HIGH", category: "APPROVAL",
     });
+    if (observation.pendingProjectReport) pointers.push({
+      projectId, facet: "PROJECT_REPORT_APPROVAL", index: null, key: observation.pendingProjectReport.requestId,
+      priority: "HIGH", category: "APPROVAL",
+    });
     if (rankBlockers && blockerAge.items.length) pointers.push({
       projectId, facet: "BLOCKER_AGE", index: null, key: "blocker-age", priority: "MEDIUM", category: "BLOCKER_REVIEW",
     });
@@ -69,20 +76,27 @@ function ranked(projects: readonly ProjectObservation[], rankBlockers: boolean):
     compare(left.facet, right.facet) || compare(left.key, right.key));
 }
 
+function approvalCoverage(projects: readonly ProjectObservation[]) {
+  const atlas = projects.some(({ pendingAtlasApproval }) => pendingAtlasApproval);
+  const reports = projects.some(({ pendingProjectReport }) => pendingProjectReport);
+  return atlas ? (reports ? "ATLAS_AND_PROJECT_REPORTS" : "ATLAS_DEMO_ONLY") : (reports ? "PROJECT_REPORTS" : "UNAVAILABLE");
+}
+
 export const pmActionQueueSchema = z.strictObject({
   rankPolicyRevision: z.enum(["pm-review-order@1", "pm-review-order@2", "pm-review-order@3"]),
   coverage: z.strictObject({ schedule: z.literal("AVAILABLE"), updateInformation: z.literal("AVAILABLE_OR_UNCONFIGURED"),
-    approvals: z.enum(["UNAVAILABLE", "ATLAS_DEMO_ONLY"]), blockerAge: z.literal("AVAILABLE_OR_UNASSESSABLE"),
+    approvals: z.enum(["UNAVAILABLE", "ATLAS_DEMO_ONLY", "PROJECT_REPORTS", "ATLAS_AND_PROJECT_REPORTS"]),
+    blockerAge: z.literal("AVAILABLE_OR_UNASSESSABLE"),
     otherCategories: z.literal("UNAVAILABLE") }),
   projects: z.array(project).max(25),
   items: z.array(pointer).max(500),
 }).superRefine((value, context) => {
   try {
-    const hasApproval = value.projects.some(({ pendingAtlasApproval }) => pendingAtlasApproval);
+    const approvals = approvalCoverage(value.projects);
     const rankBlockers = value.rankPolicyRevision === "pm-review-order@3";
     if ((rankBlockers ? !value.projects.some(({ blockerAge }) => blockerAge.items.length) :
-      value.rankPolicyRevision !== (hasApproval ? "pm-review-order@2" : "pm-review-order@1")) ||
-        hasApproval !== (value.coverage.approvals === "ATLAS_DEMO_ONLY")) invalid();
+      value.rankPolicyRevision !== (approvals === "UNAVAILABLE" ? "pm-review-order@1" : "pm-review-order@2")) ||
+        approvals !== value.coverage.approvals) invalid();
     if (JSON.stringify(ranked(value.projects, rankBlockers)) !== JSON.stringify(value.items) ||
         new TextEncoder().encode(JSON.stringify(value)).byteLength > 2 * 1024 * 1024) invalid();
   } catch { context.addIssue({ code: "custom", message: "Invalid action queue observation" }); }
@@ -96,12 +110,12 @@ export interface PmActionQueueRepository { read(actor: Actor): Promise<PmActionQ
 export function buildPmActionQueue(input: unknown): PmActionQueue {
   try {
     const projects = z.array(project).max(25).parse(input).sort((a, b) => compare(a.projectId, b.projectId));
-    const hasApproval = projects.some(({ pendingAtlasApproval }) => pendingAtlasApproval);
+    const approvals = approvalCoverage(projects);
     const rankBlockers = projects.some(({ blockerAge }) => blockerAge.items.length > 0);
-    const rankPolicyRevision = rankBlockers ? "pm-review-order@3" : hasApproval ? "pm-review-order@2" : "pm-review-order@1";
+    const rankPolicyRevision = rankBlockers ? "pm-review-order@3" : approvals === "UNAVAILABLE" ? "pm-review-order@1" : "pm-review-order@2";
     return pmActionQueueSchema.parse({ rankPolicyRevision, coverage: {
       schedule: "AVAILABLE", updateInformation: "AVAILABLE_OR_UNCONFIGURED",
-      approvals: hasApproval ? "ATLAS_DEMO_ONLY" : "UNAVAILABLE", blockerAge: "AVAILABLE_OR_UNASSESSABLE", otherCategories: "UNAVAILABLE",
+      approvals, blockerAge: "AVAILABLE_OR_UNASSESSABLE", otherCategories: "UNAVAILABLE",
     }, projects, items: ranked(projects, rankBlockers) });
   } catch { return invalid(); }
 }
