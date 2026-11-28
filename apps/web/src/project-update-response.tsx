@@ -17,6 +17,7 @@ type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
   requiredFacts: ProjectUpdateRecipientRequestView["requiredFacts"];
+  responseChoices?: ProjectUpdateRecipientRequestView["responseChoices"];
   rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: ProjectUpdateEscalationContext | null;
   atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"];
   clarification?: ProjectUpdateRecipientRequestView["clarification"] };
@@ -198,19 +199,27 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
     return { issuance: read, lifecycle: owner, value: value as RecipientRequest };
   }, enabled: isCurrentScope() && !expired && !denied, retry: false, staleTime: 0, refetchOnWindowFocus: true });
   const [text, setText] = useState("");
+  const [choice, setChoice] = useState("");
   const [correction, setCorrection] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [failed, setFailed] = useState(false);
   const operation = useRef(false), operationEpoch = useRef(0), draftEpoch = useRef(0);
-  const submission = useRef<{ key: string; text: string; correction: string | null; payload: string; fingerprint?: string } | null>(null);
+  const submission = useRef<{ key: string; text: string; configuredChoice: boolean; correction: string | null; payload: string; fingerprint?: string } | null>(null);
   const writeOwner = canonicalCreationOwner(customerId, locator);
   const writeVersion = useSyncExternalStore(invitationWrites.subscribe, invitationWrites.snapshot, invitationWrites.snapshot);
   const renderedDraftEpoch = draftEpoch.current, renderedOperationEpoch = operationEpoch.current;
   const command = submission.current;
-  const writeState = invitationWrites.state(writeOwner, command?.fingerprint && command.text === text && command.correction === correction
+  const configuredChoice = choice !== "";
+  const responseText = configuredChoice ? choice : text;
+  const writeState = invitationWrites.state(writeOwner, command?.fingerprint && command.text === responseText &&
+      command.configuredChoice === configuredChoice && command.correction === correction
     ? { key: command.key, fingerprint: command.fingerprint } : null);
   const rendered = query.data;
+  const choices = rendered?.value.responseChoices ?? [];
+  const listedChoice = choices.includes(choice);
+  const responseReady = configuredChoice ? listedChoice || writeState === "retryable" :
+    Boolean(text.trim()) && new TextEncoder().encode(text).length <= 16384;
   const currentInvitation = () => {
     const state = queryClient.getQueryState<{ issuance: number; lifecycle: number; value: RecipientRequest }>(key);
     return Boolean(isCurrentScope() && active.current && !expiredRef.current && !deniedRef.current && rendered &&
@@ -241,7 +250,7 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
       if (!active.current || deadline.current === null) return;
       const remaining = deadline.current - Date.now();
       if (remaining <= 0) {
-        expiredRef.current = true; setExpired(true); draftEpoch.current++; setText(""); setCorrection(null); submission.current = null;
+        expiredRef.current = true; setExpired(true); draftEpoch.current++; setText(""); setChoice(""); setCorrection(null); submission.current = null;
         queryClient.removeQueries({ queryKey: ownerKey }); return;
       }
       timer = setTimeout(check, Math.min(2147483647, Math.max(1, remaining)));
@@ -255,17 +264,18 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
     event.preventDefault();
     if (operation.current || busy || operationEpoch.current !== renderedOperationEpoch || draftEpoch.current !== renderedDraftEpoch ||
         invitationWrites.snapshot() !== writeVersion ||
-        !currentInvitation() || !rendered || !text.trim() || new TextEncoder().encode(text).length > 16384) return;
+        !currentInvitation() || !rendered || !responseReady) return;
     if (writeState !== "available" && writeState !== "retryable") {
       setFailed(true); setMessage("An earlier response could not be confirmed. Retry the same response or check its history."); return;
     }
-    const snapshotEpoch = draftEpoch.current, snapshotText = text, snapshotCorrection = correction, requestId = rendered.value.requestId;
+    const snapshotEpoch = draftEpoch.current, snapshotCorrection = correction, requestId = rendered.value.requestId;
     let prepared = submission.current;
-    if (!prepared || prepared.text !== snapshotText || prepared.correction !== snapshotCorrection) {
+    if (!prepared || prepared.text !== responseText || prepared.configuredChoice !== configuredChoice || prepared.correction !== snapshotCorrection) {
       if (invitationWrites.state(writeOwner, null) !== "available") { setFailed(true); setMessage("An earlier response could not be confirmed. Retry the same response or check its history."); return; }
       const idempotencyKey = crypto.randomUUID();
-      prepared = { key: idempotencyKey, text: snapshotText, correction: snapshotCorrection,
-        payload: JSON.stringify({ text: snapshotText, idempotencyKey, correctsResponseId: snapshotCorrection }) };
+      prepared = { key: idempotencyKey, text: responseText, configuredChoice, correction: snapshotCorrection,
+        payload: JSON.stringify({ text: responseText, idempotencyKey, correctsResponseId: snapshotCorrection,
+          ...(configuredChoice && { responseType: "CONFIGURED_CHOICE" }) }) };
       submission.current = prepared;
     }
     const pending = prepared;
@@ -287,7 +297,7 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
       if (!decodeInvitationReceipt(raw, requestId)) throw new Error("Response receipt unavailable.");
       invitationWrites.confirm(writeOwner, lease); lease = null;
       if (!currentInvitation() || draftEpoch.current !== snapshotEpoch) return;
-      setText(""); setCorrection(null); submission.current = null;
+      setText(""); setChoice(""); setCorrection(null); submission.current = null;
       setMessage("Response recorded; required facts remain unconfirmed.");
       void queryClient.invalidateQueries({ queryKey: key, exact: true }).catch(() => {
         if (isCurrentScope() && active.current) setMessage("Response recorded; the request could not be refreshed.");
@@ -329,12 +339,21 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
         suggestion={interpretation.suggestedStatus === "NEEDS_CLARIFICATION" ? null : interpretation.suggestedStatus}
         request={request} isCurrent={currentInvitation} />}
     <form onSubmit={submit}>
-      <label className="field"><span>Your update (unconfirmed)</span>
+      {(choices.length > 0 || configuredChoice) && <label className="field"><span>Response choice (optional)</span>
+        <select value={choice} disabled={busy} onChange={(event) => {
+          if (currentInvitation()) { draftEpoch.current++; setChoice(event.target.value); }
+        }} aria-describedby="update-response-notice">
+          <option value="">Write a response</option>
+          {configuredChoice && !listedChoice && <option value={choice} disabled>Previous choice (unavailable)</option>}
+          {choices.map((option) => <option key={option} value={option}>{option}</option>)}
+        </select>
+      </label>}
+      {!configuredChoice && <label className="field"><span>Your update (unconfirmed)</span>
         <textarea required maxLength={8000} rows={6} value={text} disabled={busy}
           onChange={(event) => { if (currentInvitation()) { draftEpoch.current++; setText(event.target.value); } }} aria-describedby="update-response-notice" />
-      </label>
+      </label>}
       <p id="update-response-notice">Submitting records your response. Required facts remain unconfirmed, reminders continue, and no Jira change is made.</p>
-      {(asksForStatus || asksForForecast) && <p>
+      {!configuredChoice && (asksForStatus || asksForForecast) && <p>
         {asksForStatus && <>To suggest a status for review, start a line with <code>Status:</code>. </>}
         {asksForForecast && <>To suggest a date, put <code>Forecast: YYYY-MM-DD</code> on its own line.</>}
       </p>}
@@ -344,7 +363,7 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
           {invitation.responses.map((entry) => <option key={entry.id} value={entry.id}>{entry.receivedAt}</option>)}
         </select>
       </label>
-      <Button className="primary" type="submit" disabled={busy || !text.trim() || new TextEncoder().encode(text).length > 16384}>Record response</Button>
+      <Button className="primary" type="submit" disabled={busy || !responseReady}>Record response</Button>
       {writeState === "pending" && <p>A response is being recorded. Wait for its result before sending another.</p>}
       {(writeState === "uncertain" || writeState === "retryable") && <p>An earlier response could not be confirmed; it may already have been recorded.</p>}
       {(writeState === "capacity" || writeState === "invalid") && <p>A response cannot be started right now. Check access or try again later.</p>}

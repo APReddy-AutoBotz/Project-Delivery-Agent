@@ -1,12 +1,13 @@
 // FR-UPD-006 / NFR-SEC-005: isolated UI contract fixtures, not native API proof.
 import { test, expect, type Page } from "@playwright/test";
-import { projectUpdateClarificationQuestion } from "../../packages/domain/src/project-update-capture.js";
+import { projectUpdateClarificationQuestion, type ProjectUpdateResponseSubmission } from "../../packages/domain/src/project-update-capture.js";
 const locator = "20000000-0000-4000-8000-000000000001";
 const customerId = "10000000-0000-4000-8000-000000000001";
 const responseId = "30000000-0000-4000-8000-000000000001";
 const correctedResponseId = "30000000-0000-4000-8000-000000000002";
-async function fixture(page: Page, expireSoon = false, history = false) {
-  const submissions: Array<{ text: string; idempotencyKey: string; correctsResponseId: string | null }> = [];
+async function fixture(page: Page, { expireSoon = false, history = false, responseChoices }:
+  { expireSoon?: boolean; history?: boolean; responseChoices?: string[] } = {}) {
+  const submissions: ProjectUpdateResponseSubmission[] = [];
   let failNext = false;
   let pendingReply: Promise<void> | undefined;
   let releaseReply: (() => void) | undefined;
@@ -45,6 +46,7 @@ async function fixture(page: Page, expireSoon = false, history = false) {
               bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "Retained historical reminder." },
           ] } } : {}),
         requiredFacts: [{ factType: "project.status", label: "Project status" }], rawResponseReaders: ["recipient", "reviewer"],
+        responseChoices,
         ...(clarificationPending ? { clarification: { responseId, question: projectUpdateClarificationQuestion } } : {}),
         responses: [...new Map(submissions.map((entry) => [entry.idempotencyKey, entry])).values()].reverse().map((entry) => ({
           id: entry.correctsResponseId ? correctedResponseId : responseId, submittedBy: "recipient", receivedAt: new Date().toISOString(),
@@ -72,7 +74,8 @@ async function fixture(page: Page, expireSoon = false, history = false) {
 }
 
 test("GOLDEN-006: the owner sees the clarification on their invitation and can answer it", async ({ page }) => {
-  const f = await fixture(page);
+  const updated = "Casey owns the fix and expects it on 6 December 2026. Work remains blocked.";
+  const f = await fixture(page, { responseChoices: [updated] });
   const input = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
   const record = page.getByRole("button", { name: "Record response" });
   await input.fill("It should be fine next week once they sort it.");
@@ -82,13 +85,13 @@ test("GOLDEN-006: the owner sees the clarification on their invitation and can a
   await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
   const question = page.getByRole("region", { name: "Clarification requested" });
   await expect(question).toContainText(projectUpdateClarificationQuestion);
-  const updated = "Casey owns the fix and expects it on 6 December 2026. Work remains blocked.";
-  await input.fill(updated);
+  await page.getByRole("combobox", { name: "Response choice (optional)" }).selectOption(updated);
+  await expect(input).toHaveCount(0);
   await page.getByRole("combobox", { name: "Correct an earlier response (optional)" }).selectOption(responseId);
   await record.click();
-  await expect(page.getByText(updated)).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Correction to an earlier response" })).toContainText(updated);
   await expect(question).toHaveCount(0);
-  expect(f.submissions.at(-1)?.correctsResponseId).toBe(responseId);
+  expect(f.submissions.at(-1)).toMatchObject({ text: updated, responseType: "CONFIGURED_CHOICE", correctsResponseId: responseId });
 });
 
 test("PMO can use a reply suggestion while confirmation remains a separate action", async ({ page }) => {
@@ -139,7 +142,7 @@ test("PMO can use a reply suggestion while confirmation remains a separate actio
 test("historical body and cited schedule expire while the invitation remains open", async ({ page }) => {
   // Both evidence deadlines precede the PM invitation deadline.
   await page.clock.install();
-  const f = await fixture(page, false, true);
+  const f = await fixture(page, { history: true });
   const context = page.getByRole("region", { name: "Escalation request history" });
   await expect(context).toContainText("Historical request near its retention deadline.");
   await expect(context).toContainText("The forecast is 14 days later than the baseline.");
@@ -190,7 +193,7 @@ test("escaped source/reply text, explicit unconfirmed receipt, retry key and sig
 
 test("invitation expiry clears the body and draft before another submit", async ({ page }) => {
   await page.clock.install();
-  const f = await fixture(page, true);
+  const f = await fixture(page, { expireSoon: true });
   await page.getByRole("textbox", { name: "Your update (unconfirmed)" }).fill("Private expiring draft");
   await page.clock.fastForward(11000);
   await expect(page.getByRole("alert")).toContainText("unavailable or has expired");

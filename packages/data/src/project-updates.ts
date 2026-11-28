@@ -2048,9 +2048,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   async invitation(actorValue: Actor, locatorValue: string): Promise<ProjectUpdateRecipientRequestView> {
     const current = parseActor(actorValue);
     return this.transaction(async (tx) => {
-      const { row, projectId, asOf } = await this.authorizedInvitation(tx, current, locatorValue);
+      const { row, projectId, asOf, configuration } = await this.authorizedInvitation(tx, current, locatorValue);
       const reviewers = row.reviewerSubjects.filter((subject) =>
-        this.captureConfiguration(current.customerId)?.responseReviewerSubjects.includes(subject));
+        configuration.responseReviewerSubjects.includes(subject));
       const responses = await this.responseHistory(tx, current, projectId, row.requestId);
       const latest = responses[0];
       const requiredFacts = policyFacts(row.requiredFacts);
@@ -2081,6 +2081,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         expiresAt: iso(row.expiresAt), body: row.body,
         requiredFacts,
         rawResponseReaders: [...new Set([row.recipientSubject, ...reviewers])],
+        ...(row.recipientRole === "OWNER" && configuration.responseChoices && { responseChoices: configuration.responseChoices }),
         responses, atlasInterpretation, clarification,
         escalationContext: await this.escalationContext(tx, current, projectId, row, asOf),
       });
@@ -2091,8 +2092,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const current = parseActor(actorValue);
     const correlationId = parseCorrelation(correlationValue);
     return this.transaction(async (tx) => {
-      // Validate text only after the same non-disclosing invitation authorization.
-      const { row, projectId, asOf } = await this.authorizedInvitation(tx, current, locatorValue);
+      // Validate the response only after the same non-disclosing invitation authorization.
+      const { row, projectId, asOf, configuration } = await this.authorizedInvitation(tx, current, locatorValue);
       const parsed = projectUpdateResponseSubmissionSchema.safeParse(submissionValue);
       if (!parsed.success) throw new ProjectUpdateError("INVALID_REQUEST");
       const submission = parsed.data;
@@ -2106,6 +2107,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (previous) return { responseId: previous.id, requestId: row.requestId,
         receivedAt: iso(previous.receivedAt), state: "UNCONFIRMED" as const,
         message: "Response recorded; required facts remain unconfirmed." as const };
+      if (submission.responseType === "CONFIGURED_CHOICE" &&
+          (row.recipientRole !== "OWNER" || !configuration.responseChoices?.includes(submission.text)))
+        throw new ProjectUpdateError("INVALID_REQUEST");
       if (submission.correctsResponseId) {
         const correction = await tx.$queryRawUnsafe<{ id: string }[]>(
           'SELECT id FROM public."ProjectUpdateResponse" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid AND "requestId"=$3::uuid AND id=$4::uuid AND "submittedBy"=$5',
@@ -2115,7 +2119,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       }
       const responseId = randomUUID();
       const auditId = await this.engagementAudit(tx, current, projectId, correlationId,
-        "project_update.response.recorded", { requestId: row.requestId, responseId, state: "UNCONFIRMED" });
+        "project_update.response.recorded", { requestId: row.requestId, responseId, state: "UNCONFIRMED",
+          ...(submission.responseType && { responseType: submission.responseType }) });
       const contentDigest = createHash("sha256").update(submission.text, "utf8").digest("hex");
       const purgeAfter = new Date(asOf.getTime() + row.contentRetentionSeconds * 1000);
       await tx.$executeRawUnsafe(
