@@ -1,9 +1,9 @@
 import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
-import { composeLeadershipUpdateClaim, composeProjectLeadershipClaims, projectDelayClarificationReviewSchema,
+import { composeLeadershipUpdateClaim, composeProjectComparisonClaims, composeProjectLeadershipClaims, projectDelayClarificationReviewSchema,
   projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
-import { atlasLeadershipAnswerSchema, composeAtlasDetailClaims, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
+import { atlasLeadershipAnswerSchema, composeAtlasComparisonClaims, composeAtlasDetailClaims, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
 import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
   decodeAtlasLeadershipAnswer, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
@@ -17,12 +17,18 @@ const receipt = { responseId: other, requestId: id, receivedAt: at, state: "UNCO
 it("validates both sets of scoped evidence in a leadership comparison", () => {
   const priorSnapshot = { id: other, asOf: at, schedule: { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 },
     updateFreshness: null };
-  const comparison = { state: "COMPARISON", projectId: id, asOf: later, schedule: null, updateFreshness: null, priorSnapshot };
+  const facts = { state: "COMPARISON" as const, projectId: id, asOf: later, schedule: null, updateFreshness: null, priorSnapshot };
+  const comparison = { ...facts, comparisonClaims: composeProjectComparisonClaims(facts) };
+  expect(projectLeadershipAnswerSchema.safeParse(comparison).success).toBe(true);
   expect(decodeProjectLeadershipAnswer(comparison, id)).toEqual(comparison);
   expect(decodeProjectLeadershipAnswer(comparison, other)).toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot, asOf: "2026-01-03T00:00:00.000Z" } }, id)).toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...comparison, priorSnapshot: { ...priorSnapshot,
     schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
+  const unsupported = { ...comparison, comparisonClaims: comparison.comparisonClaims.map((claim) =>
+    ({ ...claim, evidenceIds: [id] })) };
+  expect(projectLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
+  expect(decodeProjectLeadershipAnswer(unsupported, id)).toBeNull();
 });
 
 it("requires the saved Atlas assessment and cites an obligation only while open", () => {
@@ -110,6 +116,20 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
   const falseStart = { ...canonicalAnswer, integrationStart: { ...canonical.integrationStart, actual: "2026-01-01" } };
   expect(atlasLeadershipAnswerSchema.safeParse(falseStart).success).toBe(false);
   expect(decodeAtlasLeadershipAnswer(falseStart, id)).toBeNull();
+  const priorSnapshot = { id: other, facts: { ...facts, asOf: at, delayAssessment: null } };
+  const compared = { ...answer, priorSnapshot };
+  const comparisonClaims = composeAtlasComparisonClaims(compared);
+  const comparison = { ...compared, comparisonClaims };
+  expect(atlasLeadershipAnswerSchema.safeParse(comparison).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(comparison, id)).toEqual(comparison);
+  expect(comparisonClaims.map(({ field }) => field)).toEqual(["PM-confirmed cause", "PM forecast confidence"]);
+  expect(comparisonClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
+  const unsupported = { ...comparison, comparisonClaims: comparisonClaims.map((claim) => ({ ...claim, after: "high" })) };
+  expect(atlasLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(unsupported, id)).toBeNull();
+  const outsideScope = { ...comparison, priorSnapshot: { ...priorSnapshot, facts: { ...priorSnapshot.facts, projectId: other } } };
+  expect(atlasLeadershipAnswerSchema.safeParse(outsideScope).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(outsideScope, id)).toBeNull();
 });
 
 it("binds a pending delay request to its schedule and preserves supported evidence text", () => {

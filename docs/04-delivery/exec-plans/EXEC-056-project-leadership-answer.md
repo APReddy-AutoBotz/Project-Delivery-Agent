@@ -119,3 +119,12 @@ schedule movement and for the immutable integration milestone's planned and
 actual dates. The forecast inference binds those records and the current
 Jira evidence, with the earliest source deadline. The answer marks it as
 inference and withholds it if the supporting blocker is withdrawn.
+
+## Snapshot comparison claims
+
+Build the project and Atlas comparison rows from the currently authorized
+answer and the selected saved snapshot. Validate each changed field, both
+values, the snapshot and source references, and any evidence deadline.
+The browser table uses the validated values and exposes the evidence per row.
+Saved snapshots keep their original format. Apply or revert the response and
+table changes together.

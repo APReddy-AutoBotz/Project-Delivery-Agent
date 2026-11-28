@@ -783,7 +783,8 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const comparePath = `${answerPath}?priorSnapshotId=${snapshot.id}`;
   const compared = await request.get(comparePath, { headers: leaderHeaders });
   expect(compared.status()).toBe(200);
-  expect(await compared.json()).toMatchObject({
+  const comparedFacts = await compared.json();
+  expect(comparedFacts).toMatchObject({
     ownerReply: { accessStatus: "ACCESS_RESTORED" }, receipt: { fixtureRevision: 3 },
     priorSnapshot: { id: snapshot.id, facts: {
       asOf: snapshot.asOf, ownerReply: { accessStatus: "ACCESS_PENDING" }, receipt: { fixtureRevision: 1 },
@@ -801,6 +802,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const access = changes.getByRole("row").filter({ hasText: "Owner-confirmed API access" });
   await expect(access.getByRole("cell", { name: "Pending" })).toBeVisible();
   await expect(access.getByRole("cell", { name: "Restored" })).toBeVisible();
+  expect(comparedFacts.comparisonClaims).toContainEqual(expect.objectContaining({ field: "Owner-confirmed API access",
+    evidenceIds: [snapshot.id, snapshot.ownerReply.responseId, comparedFacts.ownerReply.responseId] }));
+  await access.getByText("Evidence", { exact: true }).click();
+  await expect(access).toContainText(comparedFacts.ownerReply.responseId);
   await expect(changes).toContainText(snapshot.id);
   await answer.getByText("Draft a question for the assigned PM", { exact: true }).click();
   await expect(answer).toContainText("The request for this schedule has been answered.");
@@ -1022,11 +1027,16 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   expect(comparedProjectResponse.status()).toBe(200);
   expect(await comparedProjectResponse.json()).toMatchObject({ state: "COMPARISON", projectId: allowedProjectId,
     updateFreshness: null, priorSnapshot: { id: savedReport.snapshotId, asOf: savedReport.draft.asOf,
-      updateFreshness: savedReport.draft.updateFreshness } });
+      updateFreshness: savedReport.draft.updateFreshness },
+    comparisonClaims: expect.arrayContaining([expect.objectContaining({ field: "Update freshness",
+      evidenceIds: [savedReport.snapshotId, savedReport.draft.updateFreshness.assessmentId] })]),
+  });
   const comparison = projectAnswer.getByRole("region", { name: "Changes since the saved snapshot" });
   const freshnessChange = comparison.getByRole("row").filter({ hasText: "Update freshness" });
   await expect(freshnessChange.getByRole("cell", { name: "current", exact: true })).toBeVisible();
   await expect(freshnessChange.getByRole("cell", { name: "Unavailable", exact: true })).toBeVisible();
+  await freshnessChange.getByText("Evidence", { exact: true }).click();
+  await expect(freshnessChange).toContainText(savedReport.draft.updateFreshness.assessmentId);
   await expect(comparison).toContainText(savedReport.draft.updateFreshness.assessmentId);
   await comparison.screenshot({ path: "artifacts/project-report-comparison.png" });
   const [wrongProjectSnapshot, missingSnapshot, managerComparison] = await Promise.all([

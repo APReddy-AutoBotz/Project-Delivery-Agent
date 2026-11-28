@@ -103,6 +103,64 @@ const liveUpdateFreshness = projectLeadershipFactsSchema.shape.updateFreshness.u
 type LiveUpdateFreshness = z.infer<typeof liveUpdateFreshness>;
 type LeadershipClaimScope = Pick<ProjectLeadershipFacts, "projectId" | "asOf">;
 
+const comparisonFields = ["Baseline date", "Forecast date", "Update freshness", "Update source", "Update obligation",
+  "Owner-confirmed API access", "Simulated Jira action", "PM-confirmed cause", "PM forecast confidence"] as const;
+const comparisonRowClaimSchema = readClaim.extend({
+  priorSnapshotId: z.uuid(),
+  field: z.enum(comparisonFields),
+  before: z.string().min(1).max(84).nullable(),
+  after: z.string().min(1).max(84).nullable(),
+  evidenceIds: z.array(z.uuid()).min(1).max(3),
+  validUntil: z.iso.datetime().nullable(),
+  freshness: z.literal("CURRENT"),
+  classification: z.literal("SYSTEM_VERIFIED"),
+});
+export const leadershipComparisonClaimsSchema = z.array(comparisonRowClaimSchema).max(comparisonFields.length);
+type ComparisonClaim = z.infer<typeof comparisonRowClaimSchema>;
+export type LeadershipComparisonField = readonly [ComparisonClaim["field"], string | null, string | null,
+  string | undefined, string | undefined, (string | null)?];
+
+export function composeLeadershipComparisonClaims(scope: LeadershipClaimScope & { priorSnapshotId: string },
+  fields: readonly LeadershipComparisonField[]): ComparisonClaim[] {
+  return fields.flatMap<ComparisonClaim>(([field, before, after, priorEvidence, currentEvidence, validUntil = null]) => {
+    if (before === after || (validUntil !== null && Date.parse(validUntil) <= Date.parse(scope.asOf))) return [];
+    return [{ projectId: scope.projectId, asOf: scope.asOf,
+      claimText: `${field} changed from ${before ?? "Unavailable"} to ${after ?? "Unavailable"}.`,
+      provenance: "SYSTEM_VERIFIED", conflict: "NONE",
+      priorSnapshotId: scope.priorSnapshotId, field, before, after,
+      evidenceIds: [...new Set([scope.priorSnapshotId, ...(priorEvidence ? [priorEvidence] : []),
+        ...(currentEvidence ? [currentEvidence] : [])])],
+      validUntil, freshness: "CURRENT", classification: "SYSTEM_VERIFIED" }];
+  });
+}
+
+const projectComparisonFactsSchema = projectLeadershipFactsSchema.extend({
+  state: z.literal("COMPARISON"),
+  priorSnapshot: projectLeadershipFactsSchema.omit({ projectId: true }).extend({ id: z.uuid() }),
+  currentScheduleReceiptId: z.uuid().optional(),
+  currentObligationId: z.uuid().optional(),
+});
+
+export function composeProjectComparisonClaims(facts: z.infer<typeof projectComparisonFactsSchema>) {
+  const { priorSnapshot: prior, currentScheduleReceiptId, currentObligationId, updateFreshness: currentUpdate } = facts;
+  const savedUpdate = prior.updateFreshness;
+  const currentSchedule = currentScheduleReceiptId ? facts.schedule : null;
+  const updateSource = (update: ProjectLeadershipFacts["updateFreshness"]) => update
+    ? `${update.sourceDateField === "project.createdAt" ? "Project created" : "Latest verified update"} at ${update.sourceDate}`
+    : null;
+  const updateObligation = (update: ProjectLeadershipFacts["updateFreshness"]) => update
+    ? update.openObligation ? "Update due" : "No update due" : null;
+  return composeLeadershipComparisonClaims({ projectId: facts.projectId, asOf: facts.asOf, priorSnapshotId: prior.id }, [
+    ["Baseline date", prior.schedule?.baseline ?? null, currentSchedule?.baseline ?? null, undefined, currentScheduleReceiptId],
+    ["Forecast date", prior.schedule?.forecast ?? null, currentSchedule?.forecast ?? null, undefined, currentScheduleReceiptId],
+    ["Update freshness", savedUpdate?.state.toLowerCase() ?? null, currentUpdate?.state.toLowerCase() ?? null,
+      savedUpdate?.assessmentId, currentUpdate?.assessmentId],
+    ["Update source", updateSource(savedUpdate), updateSource(currentUpdate), savedUpdate?.assessmentId, currentUpdate?.assessmentId],
+    ["Update obligation", updateObligation(savedUpdate), updateObligation(currentUpdate), savedUpdate?.assessmentId,
+      currentObligationId ?? currentUpdate?.assessmentId],
+  ]);
+}
+
 export function leadershipScheduleMovementText(days: number | null) {
   return days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
     : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
@@ -182,10 +240,11 @@ export const projectLeadershipAnswerSchema = z.union([
     cause: z.literal("HUMAN_CONFIRMED"),
     delayCause: confirmedProjectDelayCauseSchema,
   }).refine(({ projectId, asOf, delayCause }) => delayCause.claim.projectId === projectId && delayCause.claim.assessedAt === asOf),
-  projectLeadershipFactsSchema.extend({
-    state: z.literal("COMPARISON"),
-    priorSnapshot: projectLeadershipFactsSchema.omit({ projectId: true }).extend({ id: z.uuid() }),
-  }),
+  projectComparisonFactsSchema.extend({ comparisonClaims: leadershipComparisonClaimsSchema })
+    .refine((facts) => Date.parse(facts.priorSnapshot.asOf) <= Date.parse(facts.asOf) &&
+      (!facts.currentScheduleReceiptId || Boolean(facts.schedule)) &&
+      Boolean(facts.currentObligationId) === Boolean(facts.updateFreshness?.openObligation) &&
+      JSON.stringify(facts.comparisonClaims) === JSON.stringify(composeProjectComparisonClaims(facts))),
 ]);
 export type ProjectLeadershipAnswer = z.infer<typeof projectLeadershipAnswerSchema>;
 

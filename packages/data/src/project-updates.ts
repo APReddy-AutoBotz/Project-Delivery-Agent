@@ -21,12 +21,12 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasJiraBlockerClaimText, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasScheduleCitationSchema, atlasSpreadsheetOrigin, atlasSpreadsheetRow, IngestionPersistenceError,
-  composeAtlasDetailClaims, composeAtlasReceiptClaims,
+  composeAtlasComparisonClaims, composeAtlasDetailClaims, composeAtlasReceiptClaims,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
-  composeLeadershipUpdateClaim, composeProjectLeadershipClaims,
+  composeLeadershipUpdateClaim, composeProjectComparisonClaims, composeProjectLeadershipClaims,
   projectDelayClarificationCommandSchema, projectDelayClarificationSchema,
   projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
   projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
@@ -2919,11 +2919,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       await this.authorize(tx, current, projectId, false);
       if (compare) {
         const saved = await this.readableProjectReport(tx, current, projectId, current.subject, priorSnapshotId.toLowerCase());
-        const { facts } = await this.currentProjectLeadershipFacts(tx, current, projectId);
+        const { facts, obligationId: currentObligationId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
         const { asOf, schedule, updateFreshness } = saved.draft;
         if (asOf > facts.asOf) throw new ProjectUpdateError("DENIED");
-        return projectLeadershipAnswerSchema.parse({ ...facts, state: "COMPARISON",
-          priorSnapshot: { id: saved.snapshotId, asOf, schedule, updateFreshness } });
+        const currentScheduleReceiptId = facts.schedule
+          ? await this.canonicalProjectCreationReceiptId(tx, current.customerId, projectId) : undefined;
+        const comparison = { ...facts, state: "COMPARISON" as const, currentScheduleReceiptId, currentObligationId,
+          priorSnapshot: { id: saved.snapshotId, asOf, schedule, updateFreshness } };
+        return projectLeadershipAnswerSchema.parse({ ...comparison, comparisonClaims: composeProjectComparisonClaims(comparison) });
       }
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
@@ -3644,14 +3647,16 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const pmEscalation = escalation && escalation.availableUntil > asOf ? escalation : null;
       const detailClaims = composeAtlasDetailClaims({ ...answer, asOf, updateFreshness, pmEscalation, canonicalCreationReceiptId,
         integrationStart, jiraBlocker: blocker, forecastInference });
-      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, updateClaim, delayClarificationState,
+      const leadershipFacts = { ...answer, asOf, updateFreshness, updateClaim, delayClarificationState,
         ...(receiptClaims.length > 0 && { receiptClaims }),
         ...(detailClaims.length > 0 && { detailClaims }),
         canonicalCreationReceiptId, integrationStart, forecastInference,
         jiraBlocker: blocker,
         pmEscalation,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
-      });
+      };
+      return atlasLeadershipAnswerSchema.parse({ ...leadershipFacts,
+        ...(prior && { comparisonClaims: composeAtlasComparisonClaims(leadershipFacts) }) });
     }, "ReadCommitted");
   }
 

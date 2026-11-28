@@ -2,7 +2,8 @@ import { z } from "zod";
 import { canonicalDateSchema, canonicalSubjectSchema } from "./canonical-project.js";
 import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
-import { leadershipScheduleMovementText, leadershipUpdateClaimSchema, matchesLeadershipUpdateClaim, projectDelayClarificationCommandSchema,
+import { composeLeadershipComparisonClaims, leadershipComparisonClaimsSchema,
+  leadershipScheduleMovementText, leadershipUpdateClaimSchema, matchesLeadershipUpdateClaim, projectDelayClarificationCommandSchema,
   projectDelayClarificationSchema, projectLeadershipScheduleSchema, settledLeadershipClaimSchema } from "./project-leadership-answer.js";
 import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
@@ -265,8 +266,40 @@ export function composeAtlasDetailClaims(facts: Pick<z.infer<typeof atlasLeaders
   return claims;
 }
 
+export function composeAtlasComparisonClaims(facts: Pick<z.infer<typeof atlasLeadershipAnswerFactsSchema>,
+  "projectId" | "asOf" | "schedule" | "scheduleCitation" | "canonicalCreationReceiptId" |
+  "ownerReply" | "receipt" | "delayAssessment" | "priorSnapshot">) {
+  const saved = facts.priorSnapshot;
+  if (!saved) return [];
+  const before = saved.facts;
+  const currentScheduleReceipt = facts.scheduleCitation?.receiptId ?? facts.canonicalCreationReceiptId;
+  const schedule = currentScheduleReceipt ? facts.schedule : null;
+  const deadline = (previous?: string, current?: string) =>
+    previous && current ? (Date.parse(previous) <= Date.parse(current) ? previous : current) : previous ?? current ?? null;
+  const scheduleDeadline = deadline(before.scheduleCitation?.availableUntil, facts.scheduleCitation?.availableUntil);
+  const replyDeadline = deadline(before.ownerReply?.availableUntil, facts.ownerReply?.availableUntil);
+  const assessmentDeadline = deadline(scheduleDeadline ?? undefined, replyDeadline ?? undefined);
+  const ownerAccess = (reply: AtlasLeadershipFacts["ownerReply"]) => reply
+    ? reply.accessStatus === "ACCESS_PENDING" ? "Pending" : "Restored" : null;
+  const action = (receipt: AtlasLeadershipFacts["receipt"]) => receipt ? `Fixture revision ${receipt.fixtureRevision}` : null;
+  return composeLeadershipComparisonClaims({ projectId: facts.projectId, asOf: facts.asOf, priorSnapshotId: saved.id }, [
+    ["Baseline date", before.schedule?.baseline ?? null, schedule?.baseline ?? null,
+      before.scheduleCitation?.receiptId, currentScheduleReceipt, scheduleDeadline],
+    ["Forecast date", before.schedule?.forecast ?? null, schedule?.forecast ?? null,
+      before.scheduleCitation?.receiptId, currentScheduleReceipt, scheduleDeadline],
+    ["Owner-confirmed API access", ownerAccess(before.ownerReply), ownerAccess(facts.ownerReply),
+      before.ownerReply?.responseId, facts.ownerReply?.responseId, replyDeadline],
+    ["Simulated Jira action", action(before.receipt), action(facts.receipt), before.receipt?.id, facts.receipt?.id, replyDeadline],
+    ["PM-confirmed cause", before.delayAssessment ? "API access delay" : null, facts.delayAssessment ? "API access delay" : null,
+      before.delayAssessment?.id, facts.delayAssessment?.id, assessmentDeadline],
+    ["PM forecast confidence", before.delayAssessment?.confidence.toLowerCase() ?? null, facts.delayAssessment?.confidence.toLowerCase() ?? null,
+      before.delayAssessment?.id, facts.delayAssessment?.id, assessmentDeadline],
+  ]);
+}
+
 export const atlasLeadershipAnswerSchema = atlasLeadershipAnswerFactsSchema.extend({
   detailClaims: z.array(atlasDetailClaimSchema).max(7).optional(),
+  comparisonClaims: leadershipComparisonClaimsSchema.optional(),
 }).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
   (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf))
   .refine(({ scheduleCitation, schedule, canonicalCreationReceiptId }) => {
@@ -282,7 +315,15 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipAnswerFactsSchema.exte
       JSON.stringify(answer.detailClaims ?? []) === JSON.stringify(expected);
   })
   .refine(({ projectId, asOf, updateFreshness, updateClaim }) =>
-    matchesLeadershipUpdateClaim({ projectId, asOf }, updateFreshness ?? null, updateClaim ?? null));
+    matchesLeadershipUpdateClaim({ projectId, asOf }, updateFreshness ?? null, updateClaim ?? null))
+  .refine((facts) => {
+    const prior = facts.priorSnapshot?.facts;
+    if (prior && (prior.projectId !== facts.projectId || !prior.schedule || !prior.ownerReply || !prior.receipt ||
+        Date.parse(prior.asOf) > Date.parse(facts.asOf) || Date.parse(prior.ownerReply.availableUntil) <= Date.parse(facts.asOf) ||
+        (prior.scheduleCitation && Date.parse(prior.scheduleCitation.availableUntil) <= Date.parse(facts.asOf)))) return false;
+    return Boolean(prior) === Boolean(facts.comparisonClaims) &&
+      JSON.stringify(facts.comparisonClaims ?? []) === JSON.stringify(composeAtlasComparisonClaims(facts));
+  });
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
 export const atlasManagementFactsSchema = atlasLeadershipFactsSchema.extend({

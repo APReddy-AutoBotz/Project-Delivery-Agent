@@ -40781,6 +40781,117 @@
                         ],
                         "additionalProperties": false
                       }
+                    },
+                    "comparisonClaims": {
+                      "maxItems": 9,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "projectId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "asOf": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "claimText": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 540
+                          },
+                          "provenance": {
+                            "type": "string",
+                            "enum": [
+                              "SYSTEM_VERIFIED"
+                            ]
+                          },
+                          "conflict": {
+                            "type": "string",
+                            "enum": [
+                              "NONE"
+                            ]
+                          },
+                          "priorSnapshotId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "field": {
+                            "type": "string",
+                            "enum": [
+                              "Baseline date",
+                              "Forecast date",
+                              "Update freshness",
+                              "Update source",
+                              "Update obligation",
+                              "Owner-confirmed API access",
+                              "Simulated Jira action",
+                              "PM-confirmed cause",
+                              "PM forecast confidence"
+                            ]
+                          },
+                          "before": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 84
+                          },
+                          "after": {
+                            "nullable": true,
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 84
+                          },
+                          "evidenceIds": {
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "validUntil": {
+                            "nullable": true,
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "freshness": {
+                            "type": "string",
+                            "enum": [
+                              "CURRENT"
+                            ]
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "SYSTEM_VERIFIED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "projectId",
+                          "asOf",
+                          "claimText",
+                          "provenance",
+                          "conflict",
+                          "priorSnapshotId",
+                          "field",
+                          "before",
+                          "after",
+                          "evidenceIds",
+                          "validUntil",
+                          "freshness",
+                          "classification"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -42077,6 +42188,127 @@
                             "id"
                           ],
                           "additionalProperties": false
+                        },
+                        "currentScheduleReceiptId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "currentObligationId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "comparisonClaims": {
+                          "maxItems": 9,
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "projectId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "asOf": {
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              "claimText": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 540
+                              },
+                              "provenance": {
+                                "type": "string",
+                                "enum": [
+                                  "SYSTEM_VERIFIED"
+                                ]
+                              },
+                              "conflict": {
+                                "type": "string",
+                                "enum": [
+                                  "NONE"
+                                ]
+                              },
+                              "priorSnapshotId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              },
+                              "field": {
+                                "type": "string",
+                                "enum": [
+                                  "Baseline date",
+                                  "Forecast date",
+                                  "Update freshness",
+                                  "Update source",
+                                  "Update obligation",
+                                  "Owner-confirmed API access",
+                                  "Simulated Jira action",
+                                  "PM-confirmed cause",
+                                  "PM forecast confidence"
+                                ]
+                              },
+                              "before": {
+                                "nullable": true,
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 84
+                              },
+                              "after": {
+                                "nullable": true,
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 84
+                              },
+                              "evidenceIds": {
+                                "minItems": 1,
+                                "maxItems": 3,
+                                "type": "array",
+                                "items": {
+                                  "type": "string",
+                                  "format": "uuid",
+                                  "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                }
+                              },
+                              "validUntil": {
+                                "nullable": true,
+                                "type": "string",
+                                "format": "date-time",
+                                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                              },
+                              "freshness": {
+                                "type": "string",
+                                "enum": [
+                                  "CURRENT"
+                                ]
+                              },
+                              "classification": {
+                                "type": "string",
+                                "enum": [
+                                  "SYSTEM_VERIFIED"
+                                ]
+                              }
+                            },
+                            "required": [
+                              "projectId",
+                              "asOf",
+                              "claimText",
+                              "provenance",
+                              "conflict",
+                              "priorSnapshotId",
+                              "field",
+                              "before",
+                              "after",
+                              "evidenceIds",
+                              "validUntil",
+                              "freshness",
+                              "classification"
+                            ],
+                            "additionalProperties": false
+                          }
                         }
                       },
                       "required": [
@@ -42085,7 +42317,8 @@
                         "schedule",
                         "updateFreshness",
                         "state",
-                        "priorSnapshot"
+                        "priorSnapshot",
+                        "comparisonClaims"
                       ],
                       "additionalProperties": false
                     }

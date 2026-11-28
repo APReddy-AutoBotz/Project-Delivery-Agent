@@ -27,7 +27,7 @@ import {
   ingestionConfigurationSchema,
   ingestionReceiptReadResultSchema,
 } from "../packages/domain/src/index.js";
-import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasDetailClaims, composeAtlasReceiptClaims,
+import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasDetailClaims, composeAtlasReceiptClaims, composeProjectComparisonClaims,
   ingestionCsvPreviewFormSchema, type AtlasLeadershipAnswer } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
@@ -510,8 +510,11 @@ const projectDelayFixture = { id: project.id, requestedAt: projectAnswerFixture.
 const projectUpdateRepository: ProjectUpdateRepository = {
   projectLeadershipAnswer: vi.fn(async (_actor, _projectId, body) => {
     const priorSnapshotId = (body as { priorSnapshotId?: string }).priorSnapshotId;
-    if (priorSnapshotId) return { ...projectAnswerFixture, state: "COMPARISON" as const,
-      priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
+    if (priorSnapshotId) {
+      const comparison = { ...projectAnswerFixture, state: "COMPARISON" as const, currentScheduleReceiptId: project.id,
+        priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
+      return { ...comparison, comparisonClaims: composeProjectComparisonClaims(comparison) };
+    }
     return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const, scheduleClaim: null, updateClaim: null };
   }),
   projectDelayClarification: vi.fn(async () => ({ ...projectDelayFixture, causeEvidence: null, confirmation: null })),

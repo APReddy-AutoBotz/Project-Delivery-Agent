@@ -1,40 +1,20 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import type { ProjectLeadershipAnswer as Answer, ProjectLeadershipFacts } from "@pdaa/domain";
+import type { ProjectLeadershipAnswer as Answer } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import { RequestProjectDelayClarification } from "./project-delay-clarification.js";
+import { LeadershipComparisonTable } from "./leadership-comparison-table.js";
 import { decodeProjectLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 
 const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
-function updateSource(update: ProjectLeadershipFacts["updateFreshness"]) {
-  if (!update) return null;
-  const label = update.sourceDateField === "project.createdAt" ? "Project created" : "Latest verified update";
-  return `${label} at ${update.sourceDate}`;
-}
-
 function ProjectSnapshotComparison({ answer }: { answer: Extract<Answer, { state: "COMPARISON" }> }) {
   const { priorSnapshot: prior } = answer;
-  const fields = [
-    ["Baseline date", prior.schedule?.baseline, answer.schedule?.baseline],
-    ["Forecast date", prior.schedule?.forecast, answer.schedule?.forecast],
-    ["Update freshness", prior.updateFreshness?.state.toLowerCase(), answer.updateFreshness?.state.toLowerCase()],
-    ["Update source", updateSource(prior.updateFreshness), updateSource(answer.updateFreshness)],
-    ["Update obligation", prior.updateFreshness?.openObligation, answer.updateFreshness?.openObligation],
-  ] as const;
-  const changes = fields.filter(([, before, after]) => (before ?? null) !== (after ?? null));
-  const display = (value: string | boolean | null | undefined) => typeof value === "boolean"
-    ? value ? "Update due" : "No update due" : value ?? "Unavailable";
   return <section aria-label="Changes since the saved snapshot" aria-live="polite">
     <h3>Changes since the saved snapshot</h3>
     <p>Saved snapshot {prior.id} at {prior.asOf}. Current evidence checked at {answer.asOf}.</p>
-    {changes.length ? <table>
-      <thead><tr><th scope="col">Fact</th><th scope="col">Saved snapshot</th><th scope="col">Current</th></tr></thead>
-      <tbody>{changes.map(([label, before, after]) => <tr key={label}>
-        <th scope="row">{label}</th><td>{display(before)}</td><td>{display(after)}</td>
-      </tr>)}</tbody>
-    </table> : <p>No changes in the available fields.</p>}
+    <LeadershipComparisonTable claims={answer.comparisonClaims} emptyMessage="No changes in the available fields." />
     <ul>
       <li>Saved schedule revision {prior.schedule?.revision ?? "unavailable"} and update assessment {prior.updateFreshness?.assessmentId ?? "unavailable"}.</li>
       <li>Current schedule revision {answer.schedule?.revision ?? "unavailable"} and update assessment {answer.updateFreshness?.assessmentId ?? "unavailable"}.</li>
