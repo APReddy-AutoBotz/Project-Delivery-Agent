@@ -112,6 +112,11 @@ private HTTPS gateway that forwards the signed `/internal/project-reports/*`
 requests to the API. The worker must trust the gateway certificate and its
 hostname. Use a report task key ring with keys dedicated to this job.
 
+For the reference-load deployment, direct scheduled connector and reporting
+requests from the private gateway to a separate instance of the API image.
+Use the same customer database and configured API credentials. Dashboard
+traffic uses the interactive API instance.
+
 The schedule file specifies `customerId`, `portfolioId`, `serviceSubject`,
 `dayOfMonth` (1–28) and `hourUtc` (0–23). Grant the service subject scoped
 leadership access to the configured projects and the required evidence. The
