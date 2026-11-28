@@ -122,7 +122,7 @@ const validScheduleCitation = (value: unknown, asOf: string) => object(value) &&
   uuid(value.sourceId) && uuid(value.receiptId) && instant(value.reviewedAt) && instant(value.availableUntil) &&
   Date.parse(value.reviewedAt) <= Date.parse(asOf) && Date.parse(value.availableUntil) > Date.parse(asOf);
 
-function validProjectLeadershipFacts(value: Record<string, unknown>): value is Record<string, unknown> & { asOf: string } {
+function validProjectLeadershipFacts(value: Record<string, unknown>, currentAnswer = false): value is Record<string, unknown> & { asOf: string } {
   if (!instant(value.asOf)) return false;
   if (value.schedule !== null) {
     const schedule = decodeAtlasSchedule(value.schedule);
@@ -130,12 +130,14 @@ function validProjectLeadershipFacts(value: Record<string, unknown>): value is R
     if (schedule.movementDays !== scheduleMovement(schedule)) return false;
   }
   const freshness = value.updateFreshness;
-  return freshness === null || (object(freshness) && keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"]) &&
+  return freshness === null || (object(freshness) &&
+    keys(freshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "assessmentId", "openObligation"], currentAnswer ? ["obligationId"] : []) &&
     uuid(freshness.assessmentId) && instant(freshness.assessedAt) && instant(freshness.sourceDate) &&
     Date.parse(freshness.sourceDate) <= Date.parse(freshness.assessedAt) && Date.parse(freshness.assessedAt) <= Date.parse(value.asOf) &&
     (freshness.state === "CURRENT" || freshness.state === "STALE") &&
     (freshness.sourceDateField === "project.createdAt" || freshness.sourceDateField === "project.latestValidUpdateAt") &&
-    typeof freshness.openObligation === "boolean");
+    typeof freshness.openObligation === "boolean" &&
+    (!currentAnswer || (freshness.openObligation ? uuid(freshness.obligationId) : freshness.obligationId === undefined)));
 }
 
 const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
@@ -153,7 +155,7 @@ function matchesSettledClaim(value: unknown, projectId: string, asOf: string, pr
 export function decodeProjectLeadershipAnswer(value: unknown, projectId: string): ProjectLeadershipAnswer | null {
   if (!object(value)) return null;
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
-  if (value.projectId !== projectId || !validProjectLeadershipFacts(value)) return null;
+  if (value.projectId !== projectId || !validProjectLeadershipFacts(value, value.state === "ANSWERED")) return null;
   const required = ["state", "projectId", ...leadershipFactKeys];
   if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"], ["pendingDelayClarification"])) {
     if (value.pendingDelayClarification !== undefined) {
@@ -417,8 +419,8 @@ export function decodeProjectManagementDraft(value: unknown, projectId: string):
   if (!object(project) || !keys(project, ["code", "name"]) ||
       ![project.code, project.name].every((value) =>
         typeof value === "string" && value.length <= 160 && label(value, 640))) return null;
-  const answer = decodeProjectLeadershipAnswer({ ...facts, state: "ANSWERED", cause: "UNKNOWN" }, projectId);
-  if (answer?.state !== "ANSWERED" || approvalState !== "DRAFT" || reportingPeriod !== answer.asOf.slice(0, 7)) return null;
+  if (facts.projectId !== projectId || !validProjectLeadershipFacts(facts) ||
+      approvalState !== "DRAFT" || reportingPeriod !== facts.asOf.slice(0, 7)) return null;
   if (digest !== undefined) {
     if (!object(digest) || !keys(digest, ["previousReport", "decisions", "moreDecisions"]) ||
         !dense(digestHighlights, 2, 8) ||
@@ -430,14 +432,14 @@ export function decodeProjectManagementDraft(value: unknown, projectId: string):
     const previous = digest.previousReport;
     if (previous !== null && (!object(previous) || !keys(previous, ["snapshotId", "asOf", "schedule", "freshnessState"]) ||
         !uuid(previous.snapshotId) || previous.snapshotId === value.snapshotId || !instant(previous.asOf) ||
-        Date.parse(previous.asOf) > Date.parse(answer.asOf) ||
+        Date.parse(previous.asOf) > Date.parse(facts.asOf) ||
         (previous.schedule !== null && !decodeAtlasSchedule(previous.schedule)) ||
         ![null, "CURRENT", "STALE"].some((state) => state === previous.freshnessState))) return null;
   } else if (digestHighlights !== undefined) return null;
   const approval = value.approval;
   if (approval !== undefined) {
     if (!value.snapshotId || !object(approval) || !keys(approval, ["requestId", "requestedAt", "state", "decidedAt"]) ||
-        !uuid(approval.requestId) || !instant(approval.requestedAt) || Date.parse(approval.requestedAt) < Date.parse(answer.asOf)) return null;
+        !uuid(approval.requestId) || !instant(approval.requestedAt) || Date.parse(approval.requestedAt) < Date.parse(facts.asOf)) return null;
     if (approval.state === "PENDING" ? approval.decidedAt !== null :
         (approval.state !== "APPROVED" && approval.state !== "REJECTED") || !instant(approval.decidedAt) ||
         Date.parse(approval.decidedAt) < Date.parse(approval.requestedAt)) return null;

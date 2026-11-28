@@ -79,6 +79,14 @@ it("binds a pending delay request to its schedule and preserves supported eviden
   expect(decodeProjectLeadershipAnswer({ ...unknown, pendingDelayClarification: pending }, id)).not.toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...unknown,
     pendingDelayClarification: { ...pending, schedule: { ...schedule, revision: 2 } } }, id)).toBeNull();
+  const freshness = { assessmentId: id, assessedAt: at, sourceDate: at, sourceDateField: "project.createdAt",
+    state: "STALE", openObligation: true, obligationId: other };
+  for (const [updateFreshness, readable] of [[freshness, true], [{ ...freshness, obligationId: undefined }, false],
+    [{ ...freshness, openObligation: false }, false]] as const) {
+    const answer = { ...unknown, updateFreshness };
+    expect(decodeProjectLeadershipAnswer(answer, id)).toEqual(readable ? answer : null);
+    expect(projectLeadershipAnswerSchema.safeParse(answer).success).toBe(readable);
+  }
   const confirmation = { id, clarificationId: id, versionId: other, confirmedAt: later };
   for (const [value, readable] of [[`${"検".repeat(200)}\n設備の確認を待ちました。`, true],
     ["検".repeat(501), false], ["Invalid\0text", false]] as const) {

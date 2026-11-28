@@ -100,6 +100,15 @@ it("returns the exact real request/reminder cycle including equal-clock lower UU
   expect(JSON.stringify(context)).not.toContain(f.admin.subject);
   expect(JSON.stringify(view)).not.toContain(f.privateResponse);
   expect(view.responses.map((entry) => entry.text)).toEqual(["PM own unconfirmed reply"]);
+  const scope = { customerId: f.customerId, projectId: f.projectId };
+  const [savedAssessment, obligation] = await Promise.all([
+    db.projectUpdateAssessment.findFirstOrThrow({ where: scope, orderBy: [{ assessedAt: "desc" }, { id: "desc" }] }),
+    db.projectUpdateObligation.findFirstOrThrow({ where: { ...scope, state: "OPEN" } }),
+  ]);
+  const answer = await repository().projectLeadershipAnswer(f.pm, f.projectId, { question: "Why is this project delayed?" });
+  expect(answer).toMatchObject({ state: "ANSWERED", updateFreshness: {
+    assessmentId: savedAssessment.id, openObligation: true, obligationId: obligation.id,
+  } });
 });
 
 it("selects the latest real same-engagement anchor and excludes the older captured generation", async () => {
@@ -172,6 +181,8 @@ it.each(["PM", "OWNER"])("keeps whole-view current %s grant denial ahead of hist
     await db.accessGrant.delete({ where: { id: grant.id } });
     await expect(repository(seam).invitation(f.pm, f.escalation.locator)).rejects.toMatchObject({ code: "DENIED" });
     expect(seam.contextCalls).toBe(0);
+    if (who === "PM") await expect(repository().projectLeadershipAnswer(f.pm, f.projectId,
+      { question: "Why is this project delayed?" })).rejects.toMatchObject({ code: "DENIED" });
   } finally { await db.accessGrant.create({ data: grant }); }
 });
 

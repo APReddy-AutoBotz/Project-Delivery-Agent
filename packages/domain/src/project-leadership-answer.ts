@@ -83,14 +83,20 @@ export const projectLeadershipFactsSchema = z.strictObject({
 });
 export type ProjectLeadershipFacts = z.infer<typeof projectLeadershipFactsSchema>;
 
+const currentLeadershipFacts = projectLeadershipFactsSchema.extend({
+  updateFreshness: projectLeadershipFactsSchema.shape.updateFreshness.unwrap().extend({
+    obligationId: z.uuid().optional(),
+  }).refine(({ openObligation, obligationId }) => openObligation === (obligationId !== undefined)).nullable(),
+});
+
 export const projectLeadershipAnswerSchema = z.union([
   z.strictObject({ state: z.literal("CLARIFY") }),
-  projectLeadershipFactsSchema.extend({
+  currentLeadershipFacts.extend({
     state: z.literal("ANSWERED"),
     cause: z.literal("UNKNOWN"),
     pendingDelayClarification: projectDelayClarificationSchema.optional(),
   }),
-  projectLeadershipFactsSchema.extend({
+  currentLeadershipFacts.extend({
     state: z.literal("ANSWERED"),
     cause: z.literal("HUMAN_CONFIRMED"),
     delayCause: confirmedProjectDelayCauseSchema,

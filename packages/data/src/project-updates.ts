@@ -2892,8 +2892,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   private async currentProjectLeadershipFacts(tx: Tx, current: Actor, projectId: string) {
     const schedule = await this.canonicalProjectSchedule(tx, current.customerId, projectId);
     const observed = await this.currentProjectFreshness(tx, current, projectId);
-    return { projectId, asOf: iso(await this.now(tx)), schedule,
-      updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null };
+    return {
+      facts: { projectId, asOf: iso(await this.now(tx)), schedule,
+        updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null },
+      obligationId: observed?.freshness.openObligation ? observed.obligationId ?? undefined : undefined,
+    };
   }
 
   async projectLeadershipAnswer(actorValue: Actor, projectValue: string, question: unknown) {
@@ -2907,7 +2910,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       await this.authorize(tx, current, projectId, false);
       if (compare) {
         const saved = await this.readableProjectReport(tx, current, projectId, current.subject, priorSnapshotId.toLowerCase());
-        const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
+        const { facts } = await this.currentProjectLeadershipFacts(tx, current, projectId);
         const { asOf, schedule, updateFreshness } = saved.draft;
         if (asOf > facts.asOf) throw new ProjectUpdateError("DENIED");
         return projectLeadershipAnswerSchema.parse({ ...facts, state: "COMPARISON",
@@ -2915,7 +2918,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       }
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
-      const facts = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      const { facts: currentFacts, obligationId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      const facts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
+        { ...currentFacts.updateFreshness, ...(obligationId && { obligationId }) } };
       const delayedSchedule = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 ? facts.schedule : null;
       const delayCause = delayedSchedule &&
         await this.confirmedProjectDelayCause(tx, current, projectId, delayedSchedule, new Date(facts.asOf));
@@ -3080,7 +3085,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       where: { id: projectId, customerId: leader.customerId },
       select: { code: true, name: true },
     });
-    const facts = await this.currentProjectLeadershipFacts(tx, leader, projectId);
+    const { facts } = await this.currentProjectLeadershipFacts(tx, leader, projectId);
     const prior = await this.latestDeliveredProjectReport(tx, leader, projectId, new Date(facts.asOf)).catch((error: unknown) => {
       if (error instanceof ProjectUpdateError && error.code === "DENIED") return null;
       throw error;
