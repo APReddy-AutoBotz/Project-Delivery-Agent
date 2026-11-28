@@ -27,6 +27,7 @@ import {
 import { createApp } from "./app.js";
 import { JiraRuntimeService } from "./jira-runtime.js";
 import { installConnectorRoutes } from "./connector-routes.js";
+import { installScheduledReportRoutes } from "./scheduled-report-routes.js";
 import { createConfiguredXlsxDecoder } from "./xlsx-runtime.js";
 import { installForgeJiraStagingRoute, loadForgeJiraStagingBinding } from "./forge-jira-staging.js";
 installFatalHandlers("api");
@@ -53,6 +54,7 @@ try {
       config.NODE_ENV !== "production" && config.DEPLOYMENT_MODE === "local",
     loadCapturedReplyInterpreter(process.env.PDAA_REPLY_INTERPRETATION_FILE, config),
     ingestion,
+    config.projectReportSchedule,
   );
   const connectorRuntime = new DatabaseConnectorRuntimeRepository(db, new CredentialKeyRingVault(config.credentialKeys));
   const { app } = await createApp(
@@ -67,6 +69,7 @@ try {
     (target) => {
       installForgeJiraStagingRoute(target, forgeJiraStaging);
       installConnectorRoutes(target, config, connectorRuntime, new JiraRuntimeService(config, connectorRuntime, ingestion), projectUpdates);
+      installScheduledReportRoutes(target, config, connectorRuntime, projectUpdates);
     },
     ingestion,
     healthAssessment,

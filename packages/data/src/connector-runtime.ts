@@ -133,6 +133,7 @@ export class DatabaseConnectorRuntimeRepository {
     timestampSeconds: string;
     body: Uint8Array;
     dispatchCustomerId?: string;
+    scheduledReport?: true;
   }, now = new Date()) {
     const nonce = safeUuid(input.nonce);
     const dispatchCustomerId = input.dispatchCustomerId === undefined
@@ -141,7 +142,8 @@ export class DatabaseConnectorRuntimeRepository {
     const keyId = z.string().min(1).max(64).regex(/^[A-Za-z0-9._-]+$/).parse(input.keyId);
     if (!/^\d{10}$/.test(input.timestampSeconds)) return false;
     const timestamp = Number(input.timestampSeconds);
-    if (!Number.isSafeInteger(timestamp) || Math.abs(Math.floor(now.getTime() / 1000) - timestamp) > 60 || input.body.byteLength > 64)
+    if (!Number.isSafeInteger(timestamp) || Math.abs(Math.floor(now.getTime() / 1000) - timestamp) > 60 ||
+        input.body.byteLength > (input.scheduledReport ? 512 : 64))
       return false;
     const bodyHash = digest(input.body);
     return this.db.$transaction(async (tx) => {

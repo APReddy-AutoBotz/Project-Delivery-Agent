@@ -249,7 +249,7 @@ export class ProjectUpdateController {
     const snapshotId = snapshot.data;
     if (snapshotId) {
       const saved = await this.run(() => this.repository.projectManagementSnapshot(actor, projectId, snapshotId));
-      return this.renderSavedManagementReport(saved);
+      return snapshotId === "scheduled" ? this.renderManagementDraft(saved.draft) : this.renderSavedManagementReport(saved);
     }
     return this.renderManagementDraft(await this.run(() => this.repository.projectManagementDraft(actor, projectId)));
   }

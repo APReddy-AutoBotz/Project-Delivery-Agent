@@ -12,6 +12,7 @@ COPY packages/domain/package.json ./packages/domain/package.json
 COPY packages/platform/package.json ./packages/platform/package.json
 COPY packages/connectors-jira/package.json ./packages/connectors-jira/package.json
 COPY packages/operations/package.json ./packages/operations/package.json
+COPY packages/reporting/package.json ./packages/reporting/package.json
 RUN pnpm install --frozen-lockfile
 COPY apps ./apps
 COPY packages ./packages

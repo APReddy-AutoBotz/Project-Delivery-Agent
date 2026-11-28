@@ -28,3 +28,19 @@ schedule and freshness values, the editable deck, and current project denial.
 Use the generated OpenAPI contract and the current hosted checks. Revert the
 panel and endpoint to roll back. There is no stored draft, migration, connector
 scope change or email delivery.
+
+## Scheduled draft generation
+
+STORY-030 and AC-PERF-001 also depend on FR-RPT-005, NFR-PERF-003,
+TR-STACK-006 and ADR-003. Reuse the generic management draft fact set and
+the existing PowerPoint renderer from a Graphile Worker task. An explicitly
+configured portfolio scope and service subject define where the task can run.
+Apply current project and source access to that subject at preparation time
+and record it as the service actor.
+
+Prepare a stable report run for each selected project and reporting period.
+Render the frozen draft in the worker and complete the same run after a
+retry. Authorized leadership can preview the frozen draft. To request approval
+and distribution, leadership can generate and save a live report from the
+project. The report job and connector synchronization must run during the
+measured dashboard read workload to demonstrate the performance criterion.

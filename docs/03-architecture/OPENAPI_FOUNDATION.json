@@ -43008,13 +43008,9 @@
                 {
                   "type": "string",
                   "enum": [
-                    "latest"
-                  ]
-                },
-                {
-                  "type": "string",
-                  "enum": [
-                    "delivered"
+                    "latest",
+                    "delivered",
+                    "scheduled"
                   ]
                 }
               ]

@@ -53,10 +53,10 @@ before any package distribution.
 
 ### Atlas PowerPoint renderer, 2026-11-25
 
-The API uses the baseline-approved PptxGenJS 4.0.1 package for the synthetic
-management draft. The renderer receives fixed plain text and does not fetch
-assets. The [exact package record](DEPENDENCIES.json) contains publisher
-metadata. Existing image inventory and distribution review apply.
+The API and scheduled report worker share the baseline-approved PptxGenJS 4.0.1
+renderer for management drafts. The renderer receives bounded plain text.
+The [exact package record](DEPENDENCIES.json) contains publisher metadata.
+Existing API and worker image inventory and distribution review apply.
 
 PptxGenJS declares an image-size range of `^1.2.1`. Pin the
 maintainer's 2.1.0 release through a reviewed transitive override for

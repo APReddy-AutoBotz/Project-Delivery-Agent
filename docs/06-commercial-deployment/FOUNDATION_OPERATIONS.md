@@ -103,6 +103,47 @@ become invalid. After any rotation, obtain status again and update the mounted
 configuration before explicit enable. A PMO must explicitly replace pending
 stages from the prior epoch to create a fresh request; prior receipts remain.
 
+## Scheduled management drafts
+
+Add `-f deploy/customer/report-schedule.yaml` to the composition and set
+`PDAA_REPORT_SCHEDULE_FILE` and `PDAA_REPORT_TASK_KEYS_FILE` to read-only,
+operator-owned JSON files. Set `PDAA_INTERNAL_API_URL` to the customer-controlled
+private HTTPS gateway that forwards the signed `/internal/project-reports/*`
+requests to the API. The worker must trust the gateway certificate and its
+hostname. Use a report task key ring with keys dedicated to this job.
+
+The schedule file specifies `customerId`, `portfolioId`, `serviceSubject`,
+`dayOfMonth` (1–28) and `hourUtc` (0–23). Grant the service subject scoped
+leadership access to the configured projects and the required evidence. The
+worker prepares monthly drafts and records the frozen fact set, PowerPoint
+checksum and size under the service actor. An authorized leadership user can
+preview the latest completed draft with `GET /api/projects/{id}/management-draft?snapshotId=scheduled`.
+The API renders that preview from the frozen facts. The checksum records the
+worker's render. To request approval and distribution, generate and save a
+live report from the project.
+
+Graphile attempts each project render up to three times. After resolving an
+exhausted job's access or service error, a worker-schema operator can reset that
+job for the current reporting month. Replace the key with the exact project ID
+and reporting month. The query targets only that exhausted, unlocked render.
+
+```sql
+SELECT id FROM graphile_worker.reschedule_jobs(
+  ARRAY(
+    SELECT id FROM graphile_worker.jobs
+    WHERE task_identifier = 'render_scheduled_project_report'
+      AND key = 'project-report:<project-uuid>:<yyyy-mm>'
+      AND attempts = max_attempts
+      AND locked_at IS NULL
+  ),
+  run_at => clock_timestamp(),
+  attempts => 0
+);
+```
+
+The worker resumes the saved fact set and checks the current project and source
+access. Completion records one receipt for that report run.
+
 Restore disables issuance and rotates its epoch before runtime connections can
 resume. Enabling issuance does not promote a quarantined restore target; follow
 the separate recovery procedure first. Old invitation epochs are retained and

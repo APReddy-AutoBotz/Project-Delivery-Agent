@@ -3,6 +3,7 @@ import { isIP } from "node:net";
 import { checkServerIdentity } from "node:tls";
 import { z } from "zod";
 import { roleSchema, projectUpdateZoneConfigurationSchema, projectUpdateCaptureConfigurationSchema, type ProjectUpdateCaptureConfiguration, type ProjectUpdateZoneConfiguration, type Role } from "@pdaa/domain";
+import { projectReportScheduleSchema, type ProjectReportSchedule } from "@pdaa/domain";
 import { assertSyntheticDatabaseUrl } from "./database-target.js";
 
 const schema = z.object({
@@ -38,6 +39,8 @@ const schema = z.object({
   PROJECT_UPDATE_ZONES_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_CAPTURE_FILE: z.string().min(1).optional(),
   PROJECT_UPDATE_SERVICE_SUBJECT: z.string().min(1).max(256).optional(),
+  PROJECT_REPORT_SCHEDULE_FILE: z.string().min(1).optional(),
+  PROJECT_REPORT_TASK_KEYS_FILE: z.string().min(1).optional(),
   INTERNAL_API_URL: z.url().optional(),
   JIRA_OAUTH_CLIENT_ID: z.string().min(1).optional(),
   JIRA_OAUTH_CLIENT_SECRET: z.string().min(1).optional(),
@@ -80,6 +83,8 @@ export type Config = z.infer<typeof schema> & {
   projectUpdateServiceSubject: string | null;
   projectUpdateZones: ProjectUpdateZoneConfiguration | null;
   projectUpdateCapture: ProjectUpdateCaptureConfiguration | null;
+  projectReportSchedule: ProjectReportSchedule | null;
+  projectReportTaskKeys: { currentKeyId: string; keys: Record<string, string> } | null;
 };
 
 export function readSecretFile(path: string, key: string): string {
@@ -188,7 +193,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
       if (Buffer.from(key, "base64url").length < 32)
         throw new Error("Invalid connector task key");
   }
-  if (!!c.INTERNAL_API_URL !== !!connectorTaskKeys)
+  if ((connectorTaskKeys && !c.INTERNAL_API_URL) ||
+      (c.INTERNAL_API_URL && !connectorTaskKeys && !c.PROJECT_REPORT_TASK_KEYS_FILE))
     throw new Error("Connector task API URL and key file must be configured together");
   const projectUpdateKeyFile = c.PROJECT_UPDATE_TASK_KEYS_FILE
     ? taskKeySchema.safeParse(secretJson(c.PROJECT_UPDATE_TASK_KEYS_FILE, "PROJECT_UPDATE_TASK_KEYS"))
@@ -214,6 +220,26 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     if (internal.username || internal.password || internal.hash || internal.search || internal.pathname !== "/" ||
       (c.NODE_ENV === "production" && internal.protocol !== "https:"))
       throw new Error("Internal API endpoint must be credential-free and production HTTPS");
+  }
+  const reportSchedule = c.PROJECT_REPORT_SCHEDULE_FILE
+    ? projectReportScheduleSchema.parse(secretJson(c.PROJECT_REPORT_SCHEDULE_FILE, "PROJECT_REPORT_SCHEDULE"))
+    : null;
+  const reportKeyFile = c.PROJECT_REPORT_TASK_KEYS_FILE
+    ? taskKeySchema.parse(secretJson(c.PROJECT_REPORT_TASK_KEYS_FILE, "PROJECT_REPORT_TASK_KEYS"))
+    : null;
+  if (!!reportSchedule !== !!reportKeyFile || (reportSchedule &&
+      (!c.INTERNAL_API_URL || reportSchedule.customerId !== c.CUSTOMER_ID)))
+    throw new Error("Report schedule requires matching customer scope, task keys and internal API");
+  if (reportKeyFile) {
+    const otherTaskKeys = new Set([
+      ...Object.values(connectorTaskKeys?.keys ?? {}), ...Object.values(projectUpdateTaskKeys?.keys ?? {}),
+    ].map((key) => Buffer.from(key, "base64url").toString("base64url")));
+    if (!reportKeyFile.keys[reportKeyFile.currentKeyId] || Object.values(reportKeyFile.keys).some(
+      (key) => {
+        const bytes = Buffer.from(key, "base64url");
+        return bytes.length < 32 || otherTaskKeys.has(bytes.toString("base64url"));
+      },
+    )) throw new Error("Invalid report task key configuration");
   }
   const projectUpdateZoneFile = c.PROJECT_UPDATE_ZONES_FILE
     ? projectUpdateZoneConfigurationSchema.safeParse(secretJson(c.PROJECT_UPDATE_ZONES_FILE, "PROJECT_UPDATE_ZONES"))
@@ -282,6 +308,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     projectUpdateServiceSubject: c.PROJECT_UPDATE_SERVICE_SUBJECT ?? null,
     projectUpdateZones,
     projectUpdateCapture,
+    projectReportSchedule: reportSchedule,
+    projectReportTaskKeys: reportKeyFile,
   };
 }
 

@@ -1,6 +1,9 @@
 import { Pool } from "pg";
+import { createHash } from "node:crypto";
 import { run, Logger } from "graphile-worker";
 import { createDatabase, DatabaseWorkerHeartbeatRepository } from "@pdaa/data";
+import { projectManagementDraftOutputSchema } from "@pdaa/domain";
+import { renderProjectManagementDraft } from "@pdaa/reporting";
 import {
   loadConfig,
   operationalLog,
@@ -8,6 +11,7 @@ import {
   signConnectorTaskRequest,
 } from "@pdaa/platform";
 import { createTasks } from "./tasks.js";
+import { createScheduledReportTasks } from "./scheduled-report-tasks.js";
 import { setInterval, clearInterval } from "node:timers";
 installFatalHandlers("worker");
 let stage = "configuration";
@@ -27,6 +31,28 @@ try {
   stage = "startup";
   let lastProgress = Date.now();
   const heartbeat = new DatabaseWorkerHeartbeatRepository(db);
+  const { INTERNAL_API_URL: reportApi, projectReportTaskKeys } = config;
+  const reportTasks = reportApi && projectReportTaskKeys ? createScheduledReportTasks({
+    post: async (path, command) => {
+      const body = Buffer.from(JSON.stringify(command));
+      const headers = signConnectorTaskRequest({ method: "POST", path, body, keyRing: projectReportTaskKeys });
+      const response = await fetch(new URL(path, reportApi), {
+        method: "POST", body, headers: { ...headers, "content-type": "application/json" },
+        redirect: "error", signal: AbortSignal.timeout(30_000),
+      });
+      if (!response.ok) {
+        await response.body?.cancel();
+        throw new Error("scheduled_report_request_failed");
+      }
+      return response;
+    },
+    render: async ({ draft, snapshotId }) => {
+      const output = projectManagementDraftOutputSchema.parse(await renderProjectManagementDraft(draft, snapshotId));
+      const bytes = Buffer.from(output.powerpointBase64, "base64");
+      return { sha256: createHash("sha256").update(bytes).digest("hex"), byteLength: bytes.length };
+    },
+    onFailure: operationalLog,
+  }) : {};
   // A healthy PID is insufficient: terminate if scheduled work stops progressing.
   const watchdog = setInterval(() => {
     if (Date.now() - lastProgress > 180000) {
@@ -39,11 +65,12 @@ try {
     preset: { worker: { completeJobBatchDelay: 0, failJobBatchDelay: 0 } },
     pgPool: pool,
     schema: "graphile_worker",
-    concurrency: 1,
+    concurrency: config.projectReportSchedule ? 2 : 1,
     noHandleSignals: true,
     logger: new Logger(() => () => operationalLog("worker.event")),
-    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch\n* * * * * project_update_scan_dispatch\n* * * * * project_update_engagement_dispatch\n* * * * * project_update_content_retention\n0 * * * * health_assessment_retention",
-    taskList: createTasks(
+    crontab: "* * * * * foundation_heartbeat\n* * * * * connector_sync_dispatch\n* * * * * project_update_scan_dispatch\n* * * * * project_update_engagement_dispatch\n* * * * * project_update_content_retention\n0 * * * * health_assessment_retention" +
+      (config.projectReportSchedule ? "\n0 * * * * schedule_project_reports" : ""),
+    taskList: { ...createTasks(
       {
         recordHeartbeat: async (at) => {
           await heartbeat.recordHeartbeat(at);
@@ -60,7 +87,7 @@ try {
         );
         lastProgress = Date.now();
       },
-    ),
+    ), ...reportTasks },
   });
   operationalLog("worker.started");
   stage = "running";
