@@ -221,6 +221,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await leaderAccess(true, fixture.lastForecast.sourceId, fixture.readers);
   }
   expect(before.updateFreshness).toEqual({
+    assessmentId: protectedDraft.updateFreshness.assessmentId, obligationId: authorizedUpdate.obligation.id,
     state: authorizedUpdate.freshness.state, sourceDateField: authorizedUpdate.freshness.sourceDateField,
     sourceDate: authorizedUpdate.freshness.sourceDate, assessedAt: authorizedUpdate.freshness.assessedAt, openObligation: true,
     activeClarification: { clarificationId: clarification.clarificationId, requestedAt: clarification.requestedAt,
@@ -416,7 +417,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   await expect(answer.getByText("Draft a question for the assigned PM", { exact: true })).toHaveCount(0);
   for (const [label, evidence] of [
     ["Schedule evidence", `Baseline 2026-10-15. Forecast 2026-10-29. Reviewed portfolio CSV receipt ${spreadsheet.receiptId}`],
-    ["Update freshness evidence", `Assessed at ${before.updateFreshness.assessedAt}. Latest verified update at ${fixture.lastPmUpdateAt}.`],
+    ["Update freshness evidence", `Update assessment ${protectedDraft.updateFreshness.assessmentId}. Assessed at ${before.updateFreshness.assessedAt}. Latest verified update at ${fixture.lastPmUpdateAt}. Open update obligation ${authorizedUpdate.obligation.id}.`],
     ["Integration start evidence", "Planned start 2026-10-05. Actual start 2026-10-08."],
     ["Jira blocker evidence", `Evidence ${before.jiraBlocker.claim.evidenceIds[0]}`],
     ["Reply evidence", "Human-confirmed owner reply"],

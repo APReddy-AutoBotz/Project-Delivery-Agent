@@ -160,11 +160,15 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
     state: true, assessedAt: true, sourceDate: true, sourceDateField: true,
   }).extend({
+    assessmentId: z.uuid(),
     openObligation: z.boolean(),
+    obligationId: z.uuid().optional(),
     activeClarification: z.strictObject({
       clarificationId: z.uuid(), factType: z.enum(["project.status", "project.forecast"]),
       requestedAt: z.iso.datetime(), availableUntil: z.iso.datetime(),
     }).optional(),
+  }).refine((freshness) => freshness.openObligation === (freshness.obligationId !== undefined), {
+    path: ["obligationId"], message: "An open obligation requires its evidence ID",
   }).nullable().optional(),
   integrationStart: z.strictObject({
     milestoneId: z.uuid(),
