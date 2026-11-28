@@ -116,6 +116,9 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
   expect(programme.status).toBe(201);
   programmeId = (await programme.json()).id;
   const payload = canonicalFixture(portfolioId, programmeId);
+  const pm: Actor = { customerId, roles: ["project_manager"], subject: "canonical-reference-pm-" + randomUUID() };
+  payload.responsibilities = payload.responsibilities.map((entry) =>
+    entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject } : entry);
   const item = payload.workItems[0]!;
   item.dates = { ...item.dates, forecastStart: null, forecastEnd: "2000-01-01" };
   payload.workItems.push(...Array.from({ length: 99 }, (_, index) => ({
@@ -163,14 +166,11 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
   const assessment = await health.create(manager, projectId, randomUUID(), randomUUID());
   expect(assessment.contentAvailable).toBe(true);
   expect(assessment.input?.signals).toHaveLength(150);
-  const pm: Actor = {
-    customerId, roles: ["project_manager"],
-    subject: payload.responsibilities.find(({ role }) => role === "PROJECT_MANAGER")!.subject,
-  };
   await grant(pm, projectId, "project_manager", "project");
   const suggestions = await health.scheduleSuggestions(pm, projectId);
   expect(suggestions.items).toHaveLength(151);
   const queue = await new DatabasePmActionQueueRepository(db).read(pm);
+  expect(queue.projects.map(({ projectId }) => projectId)).toEqual([projectId]);
   expect(queue.items.filter(({ facet }) => facet === "SCHEDULE")).toHaveLength(151);
   expect(decodePmQueue(queue).items).toEqual(queue.items);
   const replay = await api(manager, "/projects", "POST", payload);
