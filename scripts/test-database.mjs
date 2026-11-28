@@ -711,6 +711,7 @@ await withSourceAdmissionRole(source.toString(), () => node([
   "tests/schedule-advice.integration.test.ts",
   "tests/pm-action-queue.integration.test.ts",
   "tests/canonical-project.integration.test.ts",
+  "tests/portfolio-reference-load.integration.test.ts",
   "tests/milestone-persistence.integration.test.ts",
   "tests/milestone-reconciliation.integration.test.ts",
   "tests/scalar-reconciliation.integration.test.ts",

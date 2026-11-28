@@ -81,6 +81,14 @@ forward-only. A previous application build can read projects with up to
 50 work items. Once a larger project exists, use a forward fix or the
 documented backup recovery procedure for a version rollback.
 
+The reference-load rehearsal uses the existing isolated native database runner.
+It creates 200 canonical projects with 100 work items and an update policy in
+each project. Two hundred authorized readers load the project list and the
+first update freshness page in groups of 20. The elapsed time includes both
+HTTP responses and their bodies. The three-second dashboard target applies to
+the slowest reader. AC-PERF-001 also requires scheduled synchronization and
+report generation during the timed reads.
+
 Creation is atomic, including all records, the receipt and sanitized audit event.
 Use parent-portfolio then current-grant locking, followed by existing programme
 and creation-receipt access; project detail uses project then current-grant locks,
