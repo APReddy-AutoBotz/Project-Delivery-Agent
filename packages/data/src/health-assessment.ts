@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   canonicalActorSchema,
+  canonicalWorkItemLimit,
   buildScheduleHealthAssessment,
   buildScheduleAdviceSnapshot,
   healthAssessmentCommandSchema,
@@ -105,8 +106,11 @@ function stable(value: unknown): unknown {
 function json(value: unknown) { return JSON.stringify(stable(value)); }
 function hash(value: string) { return createHash("sha256").update(value).digest("hex"); }
 export function checkHealthAssessmentContentSize(input: string, result: string, allowFallback: boolean) {
-  const withinLimit = Buffer.byteLength(input, "utf8") <= 262144 &&
-    Buffer.byteLength(result, "utf8") <= 262144;
+  // Leave room for the complete schedule and keep both payloads within the
+  // browser's existing 1 MiB response limit, including the response metadata.
+  const maxPayloadBytes = 448 * 1024;
+  const withinLimit = Buffer.byteLength(input, "utf8") <= maxPayloadBytes &&
+    Buffer.byteLength(result, "utf8") <= maxPayloadBytes;
   if (!withinLimit && !allowFallback) throw new HealthAssessmentError("UNAVAILABLE");
   return withinLimit;
 }
@@ -436,16 +440,16 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
       if (scheduleHealthPolicy.criticalTargets && canonical[0]?.sealed !== true)
         throw new HealthAssessmentError("UNAVAILABLE");
-      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
+      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT $3';
       const milestones = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
-            rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id)
+            rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, 51)
         : [];
       const workItems = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
-            rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id)
+            rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id, canonicalWorkItemLimit + 1)
         : [];
-      if (milestones.length > 50 || workItems.length > 50) throw new HealthAssessmentError("UNAVAILABLE");
+      if (milestones.length > 50 || workItems.length > canonicalWorkItemLimit) throw new HealthAssessmentError("UNAVAILABLE");
 
       const blockerAge = await buildBlockerAgeAssessmentInTransaction(
         tx,
@@ -676,15 +680,15 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       if (canonical[0] && !canonical[0].sealed) throw new HealthAssessmentError("UNAVAILABLE");
       // Sealed canonical children are immutable; their parent is locked above.
       // The API role has SELECT, not UPDATE, on these child tables.
-      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT 51';
+      const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT $3';
       type ScheduleRow = { id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null };
       const milestones = canonical[0]
-        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id)
+        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, 51)
         : [];
       const workItems = canonical[0]
-        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id)
+        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id, canonicalWorkItemLimit + 1)
         : [];
-      if (milestones.length > 50 || workItems.length > 50) throw new HealthAssessmentError("UNAVAILABLE");
+      if (milestones.length > 50 || workItems.length > canonicalWorkItemLimit) throw new HealthAssessmentError("UNAVAILABLE");
       const asOf = (await this.now(tx)).toISOString();
       const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
       const convert = (row: ScheduleRow) => ({ ...row, forecastEnd: date(row.forecastEnd), plannedEnd: date(row.plannedEnd) });

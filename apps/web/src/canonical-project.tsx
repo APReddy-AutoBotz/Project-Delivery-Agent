@@ -33,6 +33,7 @@ type Section = {
   key: string;
   label: string;
   singular: string;
+  maxRows?: number;
   dates?: boolean;
   fields: Field[];
 };
@@ -79,6 +80,7 @@ const sections: Section[] = [
   },
   {
     key: "workItems",
+    maxRows: 100,
     label: "Work items",
     singular: "work item",
     dates: true,
@@ -873,7 +875,7 @@ export function CreateProject({
                 ))}
                 <Button
                   className="secondary"
-                  disabled={rows[section.key]!.length >= 50 || total >= 200}
+                  disabled={rows[section.key]!.length >= (section.maxRows ?? 50) || total >= 200}
                   onClick={() => {
                     if (!isCurrentScope() || operation.current) return;
                     draftEpoch.current++;

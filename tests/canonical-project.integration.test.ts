@@ -4,6 +4,7 @@ import { SignJWT, generateKeyPair } from "jose";
 import {
   createDatabase,
   DatabaseCanonicalProjectRepository,
+  DatabaseHealthAssessmentRepository,
   DatabaseProjectFactRepository,
   DatabaseProjectRepository,
 } from "../packages/data/dist/index.js";
@@ -113,6 +114,14 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
   expect(programme.status).toBe(201);
   programmeId = (await programme.json()).id;
   const payload = canonicalFixture(portfolioId, programmeId);
+  const item = payload.workItems[0]!;
+  payload.workItems.push(...Array.from({ length: 99 }, (_, index) => ({
+    ...item, key: "WI-SCALE-" + index,
+  })));
+  const milestone = payload.milestones[0]!;
+  payload.milestones.push(...Array.from({ length: 49 }, (_, index) => ({
+    ...milestone, key: "MS-SCALE-" + index,
+  })));
   const created = await api(manager, "/projects", "POST", payload);
   expect(created.status).toBe(201);
   projectId = (await created.json()).id;
@@ -129,12 +138,23 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
     creation: { by: manager.subject, revision: 1 },
   });
   expect(detail.workItems[0].sprintKey).toBe("SPR-1");
+  expect(detail.workItems).toHaveLength(100);
+  expect(detail.milestones).toHaveLength(50);
   expect(detail.requiredWorkItems).toEqual(payload.requiredWorkItems);
   expect(detail.responsibilities).toHaveLength(5);
   expect(detail.raidItems.map((r: { kind: string }) => r.kind).sort()).toEqual(
     payload.raidItems.map((r) => r.kind).sort(),
   );
   expect(detail.sourceMappings).toHaveLength(5);
+  const health = new DatabaseHealthAssessmentRepository(db);
+  if (!await health.retention(pmo)) {
+    await health.setRetention(pmo, {
+      contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72,
+    }, randomUUID());
+  }
+  const assessment = await health.create(manager, projectId, randomUUID(), randomUUID());
+  expect(assessment.contentAvailable).toBe(true);
+  expect(assessment.input?.signals).toHaveLength(150);
   const replay = await api(manager, "/projects", "POST", payload);
   expect(replay.status).toBe(201);
   expect(await replay.json()).toEqual({ id: projectId });

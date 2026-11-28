@@ -1831,7 +1831,7 @@
                     }
                   },
                   "workItems": {
-                    "maxItems": 50,
+                    "maxItems": 100,
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -5303,7 +5303,7 @@
                       }
                     },
                     "workItems": {
-                      "maxItems": 50,
+                      "maxItems": 100,
                       "type": "array",
                       "items": {
                         "type": "object",

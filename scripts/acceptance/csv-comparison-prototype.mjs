@@ -110,7 +110,7 @@ function assertReleasedSnapshot(before) {
     .filter((e) => e.isDirectory())
     .map((e) => e.name)
     .sort();
-  assert.equal(names.length, 41);
+  assert.equal(names.length, 42);
   assert.equal(names[28], "202611180001_csv_comparison_validation_cost");
   assert.equal(names[34], "202611190006_xlsx_reviewed_import");
   assert.equal(names[35], "202611190007_xlsx_preview_receipt_read");
@@ -119,6 +119,7 @@ function assertReleasedSnapshot(before) {
   assert.equal(names[38], "202611210001_connector_page_dispatch");
   assert.equal(names[39], "202611230001_delivery_concern");
   assert.equal(names[40], "202611280001_scrum_master_role");
+  assert.equal(names[41], "202611280002_canonical_work_item_capacity");
   assert.equal(before.ledger.length, names.length);
   for (const [i, name] of names.entries()) {
     assert.match(name, /^[0-9]{12}(?:[0-9]{2})?_[a-z0-9_]+$/);

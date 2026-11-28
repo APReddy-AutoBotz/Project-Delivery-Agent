@@ -1,3 +1,4 @@
+import { canonicalWorkItemLimit } from "@pdaa/domain";
 import type { Prisma } from "./generated/prisma/client.js";
 
 type Tx = Prisma.TransactionClient;
@@ -24,7 +25,7 @@ export async function preflightMilestoneCanonicalProject(
       (SELECT count(*)::int FROM (SELECT 1 FROM public."ProjectResponsibility" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "responsibilitiesActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."Sprint" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "sprintsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."Milestone" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "milestonesActual",
-      (SELECT count(*)::int FROM (SELECT 1 FROM public."WorkItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "workItemsActual",
+      (SELECT count(*)::int FROM (SELECT 1 FROM public."WorkItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT ${canonicalWorkItemLimit + 1}) q) AS "workItemsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."RequiredWorkItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "requiredWorkItemsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."RaidItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "raidItemsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."CanonicalSourceMapping" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "sourceMappingsActual",
@@ -37,12 +38,17 @@ export async function preflightMilestoneCanonicalProject(
     FROM public."CanonicalProject" p WHERE p."customerId"=${customerId}::uuid AND p.id=${projectId}::uuid`;
   if (rows.length !== 1 || rows[0]!.sealed !== true || rows[0]!.projectReceipt !== true || rows[0]!.programmeReceipt !== true) return false;
   const row = rows[0]!;
-  const pairs = [[row.responsibilitiesCount, row.responsibilitiesActual], [row.sprintsCount, row.sprintsActual],
-    [row.milestonesCount, row.milestonesActual], [row.workItemsCount, row.workItemsActual],
-    [row.requiredWorkItemsCount, row.requiredWorkItemsActual], [row.raidItemsCount, row.raidItemsActual],
-    [row.sourceMappingsCount, row.sourceMappingsActual]];
-  return pairs.every(([declared, actual]) => Number.isInteger(declared) && declared! >= 0 && declared! <= 50 && declared === actual) &&
-    pairs.reduce((sum, [declared]) => sum + declared!, 0) <= 200;
+  const pairs = [
+    [row.responsibilitiesCount, row.responsibilitiesActual, 50],
+    [row.sprintsCount, row.sprintsActual, 50],
+    [row.milestonesCount, row.milestonesActual, 50],
+    [row.workItemsCount, row.workItemsActual, canonicalWorkItemLimit],
+    [row.requiredWorkItemsCount, row.requiredWorkItemsActual, 50],
+    [row.raidItemsCount, row.raidItemsActual, 50],
+    [row.sourceMappingsCount, row.sourceMappingsActual, 50],
+  ] as const;
+  return pairs.every(([declared, actual, limit]) => Number.isInteger(declared) && declared >= 0 && declared <= limit && declared === actual) &&
+    pairs.reduce((sum, [declared]) => sum + declared, 0) <= 200;
 }
 
 type VersionMetadata = {
