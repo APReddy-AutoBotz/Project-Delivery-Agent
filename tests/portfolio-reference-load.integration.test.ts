@@ -146,20 +146,24 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
     let workerLog = "";
     worker.stdout?.setEncoding("utf8").on("data", (chunk: string) => { workerLog = (workerLog + chunk).slice(-4096); });
     await until(async () => workerLog.includes('"worker.started"'), "worker startup");
-    await db.$queryRaw`SELECT (graphile_worker.add_job('schedule_project_reports', '{}'::json)).id::text AS id`;
-    const reportScope = { customerId, actor: reportSchedule.serviceSubject, event: renderedReportEvent };
-    await until(async () => (await db.auditEvent.count({ where: reportScope })) > 0, "the first completed scheduled report");
     // Each source runs its normal cursor reset and then one bounded issue page.
     for (let setup = 0; setup < synchronization.sourceCount * 2; setup++) {
       await db.$queryRaw`SELECT (graphile_worker.add_job('connector_sync_dispatch', '{}'::json,
         queue_name => 'reference-sync')).id::text AS id`;
     }
     await until(async () => synchronization.waitForRead(), "a scheduled connector read");
+    await db.$queryRaw`SELECT (graphile_worker.add_job('schedule_project_reports', '{}'::json)).id::text AS id`;
+    const reportScope = { customerId, actor: reportSchedule.serviceSubject, event: renderedReportEvent };
+    await until(async () => (await db.auditEvent.count({ where: reportScope })) > 0, "the first completed scheduled report");
+    const syncScope = { customerId, kind: "CONNECTOR_PAGE", executionMode: "CONNECTOR_SYNC" };
     const readStarted = new Date();
+    const additionalReadDeadline = Date.now() + 30_000;
 
-    let maxDurationMs = 0;
-    for (let first = 0; first < headers.length; first += concurrentUsers) {
-      const pending = Promise.all(headers.slice(first, first + concurrentUsers).map(async (authorization) => {
+    let maxDurationMs = 0, overlappingReceipts = false;
+    for (let first = 0; first < headers.length ||
+        (!overlappingReceipts && Date.now() < additionalReadDeadline); first += concurrentUsers) {
+      const waveStart = first % headers.length;
+      const pending = Promise.all(headers.slice(waveStart, waveStart + concurrentUsers).map(async (authorization) => {
         const startedAt = performance.now();
         const request = { headers: authorization, signal: AbortSignal.timeout(10_000) };
         const [projectsResponse, freshnessResponse] = await Promise.all([
@@ -180,8 +184,17 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
       }));
       if (first === 0) resumeSynchronization();
       maxDurationMs = Math.max(maxDurationMs, ...await pending);
+      if (first + concurrentUsers >= headers.length) {
+        const [connectors, reports] = await Promise.all([
+          db.ingestionOperationReceipt.count({ where: { ...syncScope, createdAt: { gte: readStarted } } }),
+          db.auditEvent.count({ where: { ...reportScope, occurredAt: { gte: readStarted } } }),
+        ]);
+        overlappingReceipts = connectors > 0 && reports > 0;
+      }
     }
     const readCompleted = new Date();
+    expect(await db.ingestionOperationReceipt.count({ where: { ...syncScope, createdAt: { gte: readStarted, lte: readCompleted } } }))
+      .toBeGreaterThan(0);
     expect(await db.auditEvent.count({ where: { ...reportScope, occurredAt: { gte: readStarted, lte: readCompleted } } }))
       .toBeGreaterThan(0);
     await until(async () => (await db.ingestionExternalRecord.count({ where: { customerId } })) === projectCount,
@@ -189,7 +202,7 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
     const synchronized = await db.ingestionExternalRecord.findMany({ where: { customerId }, select: { projectId: true } });
     expect(synchronized.map(({ projectId }) => projectId).sort()).toEqual([...projectIds].sort());
     const syncReceipts = await db.ingestionOperationReceipt.findMany({
-      where: { customerId, kind: "CONNECTOR_PAGE", executionMode: "CONNECTOR_SYNC" },
+      where: syncScope,
       select: { sourceId: true, outcomeCount: true },
     });
     expect(new Set(syncReceipts.map(({ sourceId }) => sourceId)).size).toBe(synchronization.sourceCount);
