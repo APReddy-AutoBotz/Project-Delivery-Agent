@@ -12,6 +12,7 @@
     "@pdaa/domain": "workspace:*",
     "@pdaa/data": "workspace:*",
     "@pdaa/platform": "workspace:*",
+    "@pdaa/reporting": "workspace:*",
     "graphile-worker": "0.17.3",
     "pg": "8.23.0"
   },

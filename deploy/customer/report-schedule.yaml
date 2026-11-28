@@ -1,0 +1,19 @@
+# EXEC-057. The worker and API share an operator-configured report scope.
+services:
+  api:
+    environment:
+      INTERNAL_API_URL: ${PDAA_INTERNAL_API_URL:?}
+      PROJECT_REPORT_SCHEDULE_FILE: /run/secrets/project-report-schedule
+      PROJECT_REPORT_TASK_KEYS_FILE: /run/secrets/project-report-task-keys
+    secrets: [project-report-schedule, project-report-task-keys]
+  worker:
+    environment:
+      INTERNAL_API_URL: ${PDAA_INTERNAL_API_URL:?}
+      PROJECT_REPORT_SCHEDULE_FILE: /run/secrets/project-report-schedule
+      PROJECT_REPORT_TASK_KEYS_FILE: /run/secrets/project-report-task-keys
+    secrets: [project-report-schedule, project-report-task-keys]
+secrets:
+  project-report-schedule:
+    file: ${PDAA_REPORT_SCHEDULE_FILE:?}
+  project-report-task-keys:
+    file: ${PDAA_REPORT_TASK_KEYS_FILE:?}

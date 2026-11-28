@@ -143,6 +143,7 @@ function isInternalTextRequest(request: { url?: string; method?: string }) {
   return request.method === "POST" &&
     (pathname.startsWith("/internal/connectors/") ||
       pathname.startsWith("/internal/project-updates/") ||
+      pathname.startsWith("/internal/project-reports/") ||
       pathname.startsWith("/webhooks/jira/"));
 }
 

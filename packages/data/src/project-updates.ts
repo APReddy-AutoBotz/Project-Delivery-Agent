@@ -30,6 +30,8 @@ import {
   projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
   projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
   projectManagementDraftSchema, projectManagementSnapshotSchema,
+  projectReportJobPlanSchema, projectReportRenderReceiptSchema,
+  type ProjectReportSchedule, type ProjectReportJob, type ProjectReportRenderReceipt,
   projectReportApprovalSchema, projectReportApprovalRequestSchema, projectReportDecisionSchema,
   projectReportVersionSchema, projectReportDeliverySchema, projectReportEvents,
   projectReportAuditSearchSchema, projectReportAuditPageSchema, projectReportAuditPageSize, type ProjectReportAuditSearch,
@@ -102,6 +104,9 @@ const atlasReportDecidedEvent = "atlas_demo.report_approval.decided";
 const atlasReportDistributedEvent = "atlas_demo.report.distributed";
 const projectDelayClarificationEvent = "project_delay.clarification_requested";
 const projectDelayCauseConfirmedEvent = "project_delay.cause_confirmed";
+const scheduledReportDraftEvent = "project_report.scheduled_draft.frozen";
+const scheduledReportRenderedEvent = "project_report.scheduled_draft.rendered";
+const storedScheduledReportReceipt = projectReportRenderReceiptSchema.extend({ actorKind: z.literal("service") });
 const { draftSaved: projectReportSavedEvent, approvalRequested: projectReportRequestedEvent,
   decisionRecorded: projectReportDecidedEvent, delivered: projectReportDeliveredEvent } = projectReportEvents;
 const savedProjectReportDetail = z.strictObject({ projectId: z.uuid(), draft: projectManagementDraftSchema });
@@ -430,6 +435,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     private readonly atlasDemoEnabled = false,
     private readonly replyInterpreter?: CapturedReplyInterpreter,
     private readonly reviewedCsv?: Pick<DatabaseIngestionRepository, "readReviewedCsvRow">,
+    private readonly reportSchedule: ProjectReportSchedule | null = null,
   ) {
     this.authority = new DatabaseAuthorityRepository(db);
     this.zones = zones ? projectUpdateZoneConfigurationSchema.parse(zones) : null;
@@ -3094,6 +3100,114 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     }, "ReadCommitted");
   }
 
+  private scheduledReportPeriod(schedule: ProjectReportSchedule, time: Date) {
+    if (time.getUTCDate() < schedule.dayOfMonth ||
+        (time.getUTCDate() === schedule.dayOfMonth && time.getUTCHours() < schedule.hourUtc)) return null;
+    return iso(time).slice(0, 7);
+  }
+
+  async planScheduledProjectReports(schedule: ProjectReportSchedule) {
+    return this.transaction(async (tx) => {
+      const reportingPeriod = this.scheduledReportPeriod(schedule, await this.now(tx));
+      if (!reportingPeriod) return [];
+      const projects = await tx.$queryRaw<{ projectId: string }[]>`
+        SELECT p.id AS "projectId" FROM public."Project" p
+        JOIN public."CanonicalProject" c ON c."customerId"=p."customerId" AND c.id=p.id AND c.sealed
+        WHERE p."customerId"=${schedule.customerId}::uuid AND p."portfolioId"=${schedule.portfolioId}::uuid
+          AND EXISTS (SELECT 1 FROM public."AccessGrant" g
+            WHERE g."customerId"=p."customerId" AND g.subject=${schedule.serviceSubject} AND g.role='leadership'
+              AND ((g."scopeType"='project' AND g."scopeId"=p.id) OR
+                   (g."scopeType"='portfolio' AND g."scopeId"=p."portfolioId")))
+          AND NOT EXISTS (SELECT 1 FROM public."AuditEvent" a
+            WHERE a."customerId"=p."customerId" AND a.actor=${schedule.serviceSubject}
+              AND a.event=${scheduledReportRenderedEvent} AND a.detail->>'projectId'=p.id::text
+              AND a.detail->>'reportingPeriod'=${reportingPeriod})
+        ORDER BY p.id LIMIT 200`;
+      return projectReportJobPlanSchema.parse(projects.map(({ projectId }) => ({ projectId, reportingPeriod })));
+    }, "ReadCommitted");
+  }
+
+  private async authorizeScheduledProjectReport(tx: Tx, schedule: ProjectReportSchedule, projectId: string) {
+    const actor: Actor = { customerId: schedule.customerId, subject: schedule.serviceSubject, roles: ["leadership"] };
+    await this.authorize(tx, actor, projectId, false);
+    const project = await tx.project.findFirst({
+      where: { customerId: schedule.customerId, id: projectId, portfolioId: schedule.portfolioId,
+        canonicalProject_project: { sealed: true } }, select: { id: true },
+    });
+    if (!project) throw new ProjectUpdateError("DENIED");
+    return actor;
+  }
+
+  private async findScheduledProjectReport(tx: Tx, customerId: string, author: string, job: ProjectReportJob,
+    event: typeof scheduledReportDraftEvent | typeof scheduledReportRenderedEvent) {
+    return tx.auditEvent.findFirst({
+      where: { customerId, actor: author, event, AND: [
+        { detail: { path: ["projectId"], equals: job.projectId } },
+        { detail: { path: ["reportingPeriod"], equals: job.reportingPeriod } },
+      ] }, select: { id: true, detail: true },
+    });
+  }
+
+  private async readableScheduledReportDraft(tx: Tx, actor: Actor, job: ProjectReportJob, author = actor.subject) {
+    const saved = await this.findScheduledProjectReport(tx, actor.customerId, author, job, scheduledReportDraftEvent);
+    if (!saved) return null;
+    const draft = projectManagementDraftSchema.parse(safeObject.parse(saved.detail).draft);
+    if (draft.projectId !== job.projectId || draft.reportingPeriod !== job.reportingPeriod)
+      throw new ProjectUpdateError("DENIED");
+    await this.authorizeSavedReportInputs(tx, actor, author, draft);
+    return { snapshotId: saved.id, draft };
+  }
+
+  async prepareScheduledProjectReport(schedule: ProjectReportSchedule, job: ProjectReportJob, correlationId: string) {
+    return this.transaction(async (tx) => {
+      const actor = await this.authorizeScheduledProjectReport(tx, schedule, job.projectId);
+      await this.lockProjectCommand(tx, "scheduled-report", [actor.customerId, job.projectId, job.reportingPeriod]);
+      if (this.scheduledReportPeriod(schedule, await this.now(tx)) !== job.reportingPeriod ||
+          await this.findScheduledProjectReport(tx, actor.customerId, actor.subject, job, scheduledReportRenderedEvent)) return null;
+      const prior = await this.readableScheduledReportDraft(tx, actor, job);
+      if (prior) return prior;
+      const draft = await this.currentProjectManagementDraft(tx, actor, job.projectId);
+      if (draft.reportingPeriod !== job.reportingPeriod) return null;
+      const snapshot = await this.recordProjectAuditEvent(tx, actor, scheduledReportDraftEvent, correlationId,
+        { ...job, actorKind: "service", draft }, new Date(draft.asOf));
+      return { snapshotId: snapshot.id, draft };
+    }, "ReadCommitted");
+  }
+
+  async recordScheduledProjectReport(schedule: ProjectReportSchedule, result: ProjectReportRenderReceipt, correlationId: string) {
+    return this.transaction(async (tx) => {
+      const actor = await this.authorizeScheduledProjectReport(tx, schedule, result.projectId);
+      await this.lockProjectCommand(tx, "scheduled-report", [actor.customerId, result.projectId, result.reportingPeriod]);
+      const completedAt = await this.now(tx);
+      if (this.scheduledReportPeriod(schedule, completedAt) !== result.reportingPeriod) throw new ProjectUpdateError("DENIED");
+      const snapshot = await this.readableScheduledReportDraft(tx, actor, result);
+      if (snapshot?.snapshotId !== result.snapshotId) throw new ProjectUpdateError("DENIED");
+      if (await this.findScheduledProjectReport(tx, actor.customerId, actor.subject, result, scheduledReportRenderedEvent)) return;
+      await this.recordProjectAuditEvent(tx, actor, scheduledReportRenderedEvent, correlationId,
+        { ...result, actorKind: "service" }, completedAt);
+    }, "ReadCommitted");
+  }
+
+  private async latestScheduledProjectReport(tx: Tx, leader: Actor, projectId: string) {
+    const schedule = this.reportSchedule;
+    if (!schedule || schedule.customerId !== leader.customerId) throw new ProjectUpdateError("DENIED");
+    const project = await tx.project.findFirst({
+      where: { customerId: leader.customerId, id: projectId, portfolioId: schedule.portfolioId }, select: { id: true },
+    });
+    if (!project) throw new ProjectUpdateError("DENIED");
+    const completed = await tx.auditEvent.findFirst({
+      where: { customerId: leader.customerId, actor: schedule.serviceSubject, event: scheduledReportRenderedEvent,
+        detail: { path: ["projectId"], equals: projectId } },
+      orderBy: [{ occurredAt: "desc" }, { id: "desc" }], select: { detail: true },
+    });
+    if (!completed) throw new ProjectUpdateError("DENIED");
+    const result = storedScheduledReportReceipt.parse(completed.detail);
+    if (result.projectId !== projectId) throw new ProjectUpdateError("DENIED");
+    const saved = await this.readableScheduledReportDraft(tx, leader, result, schedule.serviceSubject);
+    if (saved?.snapshotId !== result.snapshotId) throw new ProjectUpdateError("DENIED");
+    return projectManagementSnapshotSchema.parse(saved);
+  }
+
   private async savedProjectManagementSnapshot(tx: Tx, customerId: string, projectId: string, author: string, snapshotId?: string) {
     const saved = await tx.auditEvent.findFirst({
       where: { customerId, actor: author, event: projectReportSavedEvent,
@@ -3221,7 +3335,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.projectReportView(tx, current.customerId, saved, request);
   }
 
-  private async lockProjectCommand(tx: Tx, namespace: "project-report" | "project-delay-clarification", identity: readonly string[]) {
+  private async lockProjectCommand(tx: Tx, namespace: "project-report" | "project-delay-clarification" | "scheduled-report", identity: readonly string[]) {
     await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtextextended($1,0)) IS NULL AS locked",
       stringify([namespace, ...identity]));
   }
@@ -3258,10 +3372,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const leader = this.reportingActor(actorValue, "leadership");
     const projectId = parseProjectId(projectValue);
     const latestDelivery = snapshotValue === "delivered";
-    const snapshotId = snapshotValue === "latest" || latestDelivery ? undefined : parseProjectId(snapshotValue);
+    const latestScheduled = snapshotValue === "scheduled";
+    const snapshotId = snapshotValue === "latest" || latestDelivery || latestScheduled ? undefined : parseProjectId(snapshotValue);
     return this.transaction(async (tx) => {
       await this.authorize(tx, leader, projectId, false);
       if (latestDelivery) return this.latestDeliveredProjectReport(tx, leader, projectId);
+      if (latestScheduled) return this.latestScheduledProjectReport(tx, leader, projectId);
       const saved = await this.readableProjectReport(tx, leader, projectId, leader.subject, snapshotId);
       return this.projectReportWithApproval(tx, leader, saved);
     }, "ReadCommitted");

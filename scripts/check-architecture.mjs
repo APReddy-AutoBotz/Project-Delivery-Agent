@@ -22,6 +22,11 @@ const policies = {
     external: ["zod", "jose"],
     node: true,
   },
+  "@pdaa/reporting": {
+    workspace: ["@pdaa/domain"],
+    external: ["pptxgenjs"],
+    node: true,
+  },
   "@pdaa/data": {
     workspace: ["@pdaa/domain", "@pdaa/platform"],
     external: ["@prisma/client", "@prisma/adapter-pg", "pg", "zod"],
@@ -33,6 +38,7 @@ const policies = {
       "@pdaa/platform",
       "@pdaa/data",
       "@pdaa/connectors-jira",
+      "@pdaa/reporting",
     ],
     external: [
       "@nestjs/common",
@@ -40,7 +46,6 @@ const policies = {
       "@nestjs/platform-express",
       "@nestjs/swagger",
       "busboy",
-      "pptxgenjs",
       "reflect-metadata",
       "rxjs",
       "zod",
@@ -48,7 +53,7 @@ const policies = {
     node: true,
   },
   "@pdaa/worker": {
-    workspace: ["@pdaa/domain", "@pdaa/platform", "@pdaa/data"],
+    workspace: ["@pdaa/domain", "@pdaa/platform", "@pdaa/data", "@pdaa/reporting"],
     external: ["pg", "graphile-worker"],
     node: true,
   },

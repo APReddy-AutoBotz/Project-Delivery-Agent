@@ -8,6 +8,8 @@ const events = new Set([
   "worker.connection_error",
   "worker.progress_timeout",
   "worker.event",
+  "worker.scheduled_report_plan_failed",
+  "worker.scheduled_report_render_failed",
   "worker.fatal",
   "operations.failed",
   "operations.fatal",

@@ -103,6 +103,23 @@ become invalid. After any rotation, obtain status again and update the mounted
 configuration before explicit enable. A PMO must explicitly replace pending
 stages from the prior epoch to create a fresh request; prior receipts remain.
 
+## Scheduled management drafts
+
+Add `-f deploy/customer/report-schedule.yaml` to the composition and set
+`PDAA_REPORT_SCHEDULE_FILE` and `PDAA_REPORT_TASK_KEYS_FILE` to read-only,
+operator-owned JSON files. Set `PDAA_INTERNAL_API_URL` to the customer-controlled
+private HTTPS gateway that forwards the signed `/internal/project-reports/*`
+requests to the API. The worker must trust the gateway certificate and its
+hostname. Use a report task key ring with keys dedicated to this job.
+
+The schedule file specifies `customerId`, `portfolioId`, `serviceSubject`,
+`dayOfMonth` (1–28) and `hourUtc` (0–23). Grant the service subject scoped
+leadership access to the configured projects and the required evidence. The
+worker prepares monthly drafts and records the frozen fact set, PowerPoint
+checksum and size under the service actor. An authorized leadership user can
+preview the latest completed draft with `GET /api/projects/{id}/management-draft?snapshotId=scheduled`.
+The normal saved-report workflow handles human approval and distribution.
+
 Restore disables issuance and rotates its epoch before runtime connections can
 resume. Enabling issuance does not promote a quarantined restore target; follow
 the separate recovery procedure first. Old invitation epochs are retained and

@@ -68,7 +68,7 @@ export const projectManagementSnapshotSchema = z.strictObject({
   delivery: projectReportDeliverySchema.optional(),
 });
 export type ProjectManagementSnapshot = z.infer<typeof projectManagementSnapshotSchema>;
-export const projectManagementSnapshotSelectorSchema = z.union([z.uuid(), z.literal("latest"), z.literal("delivered")]);
+export const projectManagementSnapshotSelectorSchema = z.union([z.uuid(), z.enum(["latest", "delivered", "scheduled"])]);
 
 export const projectManagementDraftOutputSchema = z.strictObject({
   draft: projectManagementDraftSchema,
