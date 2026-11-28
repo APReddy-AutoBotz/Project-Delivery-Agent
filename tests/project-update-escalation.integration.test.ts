@@ -82,7 +82,7 @@ it("returns the exact real request/reminder cycle including equal-clock lower UU
   const view = await repository().invitation(f.pm, f.escalation.locator);
   const context = view.escalationContext!;
   expect(context.state).toBe("AVAILABLE");
-  expect(context.impact).toBe("UNKNOWN");
+  expect(context.impact).toEqual({ revision: 1, baseline: "2026-06-30", forecast: "2026-07-15", movementDays: 15 });
   expect(context.originalRequestId).toBe(f.request.requestId);
   expect(context.entries.map((entry) => entry.requestId)).toEqual([
     f.request.requestId, f.reminder.requestId, f.secondReminder.requestId, f.ownerEscalation.requestId,

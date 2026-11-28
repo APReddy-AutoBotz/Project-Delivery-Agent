@@ -2031,8 +2031,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         contentState: !retained ? "EXPIRED" : body === null ? "RESTRICTED" : "PRESENT",
         bodyProjection: "REVIEWER_NAMES_WITHHELD", body });
     }
+    const reviewed = this.atlasDemoEnabled && invitation.code === atlasApprovalProjectCode
+      ? await this.currentAtlasSchedule(tx, current, projectId)
+      : { schedule: await this.canonicalProjectSchedule(tx, current.customerId, projectId), citation: undefined };
+    const { schedule, citation } = reviewed ?? {};
+    const impact = schedule?.baseline && schedule.forecast && schedule.movementDays !== null &&
+      (!citation || (Date.parse(citation.reviewedAt) <= asOf.getTime() && Date.parse(citation.availableUntil) > asOf.getTime()))
+      ? { ...schedule, ...(citation && { citation }) } : "UNKNOWN";
     const context = projectUpdateEscalationContextSchema.safeParse({
-      asOf: iso(asOf), state: "AVAILABLE", impact: "UNKNOWN",
+      asOf: iso(asOf), state: "AVAILABLE", impact,
       originalRequestId: rows[0]!.originalRequestId, entries,
     });
     return context.success ? context.data : unavailable;

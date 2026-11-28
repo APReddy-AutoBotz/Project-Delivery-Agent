@@ -154,8 +154,9 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
     await until(async () => synchronization.waitForRead(), "a scheduled connector read");
     await db.$queryRaw`SELECT (graphile_worker.add_job('schedule_project_reports', '{}'::json)).id::text AS id`;
     const reportScope = { customerId, actor: reportSchedule.serviceSubject, event: renderedReportEvent };
-    await until(async () => (await db.auditEvent.count({ where: reportScope })) > 0,
-      "the first completed scheduled report", 20_000);
+    // Start reads and release the synthetic Jira barrier before waiting for
+    // receipts. A scheduled connector invocation can occupy the other worker
+    // slot while the Jira response is deliberately held.
     const syncScope = { customerId, kind: "CONNECTOR_PAGE", executionMode: "CONNECTOR_SYNC" };
     const readStarted = new Date();
     let readCompleted = readStarted;

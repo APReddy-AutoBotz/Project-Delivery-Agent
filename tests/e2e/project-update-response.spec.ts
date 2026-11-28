@@ -30,7 +30,10 @@ async function fixture(page: Page, expireSoon = false, history = false) {
       return response({ requestId: locator, project: { id: locator, code: "SYN", name: "Synthetic delivery" },
         stageKind: history ? "ESCALATION" : "REQUEST", dueAt: new Date(now).toISOString(), capturedAt: new Date(now).toISOString(),
         expiresAt: new Date(now + (expireSoon ? 10000 : 3600000)).toISOString(), body,
-        ...(history ? { escalationContext: { asOf: new Date(now).toISOString(), state: "AVAILABLE", impact: "UNKNOWN",
+        ...(history ? { escalationContext: { asOf: new Date(now).toISOString(), state: "AVAILABLE",
+          impact: { revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14,
+            citation: { sourceId: locator, receiptId: correctedResponseId,
+              reviewedAt: new Date(now - 2000).toISOString(), availableUntil: new Date(now + 10000).toISOString() } },
           originalRequestId: responseId, entries: [
             { requestId: responseId, stageId: "40000000-0000-4000-8000-000000000001", stageKind: "REQUEST",
               generation: 1, ordinal: 0, capturedAt: new Date(now - 1000).toISOString(),
@@ -133,16 +136,19 @@ test("PMO can use a reply suggestion while confirmation remains a separate actio
   expect(confirmations).toBe(0);
 });
 
-test("historical body expiry is independent of invitation expiry and refetch denial clears context", async ({ page }) => {
-  // UI contract only: a historical body can be close to expiry while its PM invitation remains valid.
+test("historical body and cited schedule expire while the invitation remains open", async ({ page }) => {
+  // Both evidence deadlines precede the PM invitation deadline.
   await page.clock.install();
   const f = await fixture(page, false, true);
   const context = page.getByRole("region", { name: "Escalation request history" });
   await expect(context).toContainText("Historical request near its retention deadline.");
-  await expect(context).toContainText("Delivery impact: unknown");
+  await expect(context).toContainText("The forecast is 14 days later than the baseline.");
+  await expect(context).toContainText(`Reviewed CSV receipt ${correctedResponseId}.`);
   expect(await page.evaluate(() => (window as unknown as { historyExecuted?: unknown }).historyExecuted)).toBeUndefined();
   await page.clock.fastForward(11000);
   await expect(context).not.toContainText("Historical request near its retention deadline.");
+  await expect(context).toContainText("Delivery impact: unknown");
+  await expect(context).not.toContainText(correctedResponseId);
   await expect(context).toContainText("Request content has expired.");
   await expect(context).toContainText("Retained historical reminder.");
   await expect(page.getByText(f.body, { exact: true })).toBeVisible();

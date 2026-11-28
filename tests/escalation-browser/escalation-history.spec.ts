@@ -25,6 +25,10 @@ test("PM reads the exact protected request cycle and loses origin content after 
     const actualRead = await firstRead;
     expect(actualRead.status()).toBe(200);
     const response = await actualRead.json();
+    expect(response.escalationContext.impact).toMatchObject({
+      revision: 1, baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14,
+      citation: { sourceId: f.spreadsheetIntake.sourceId, receiptId: f.spreadsheetIntake.receiptId },
+    });
     expect(response.escalationContext.entries.map((entry: { requestId: string }) => entry.requestId)).toEqual([
       f.request.requestId, f.reminder.requestId, f.secondReminder.requestId, f.ownerEscalation.requestId,
     ]);
@@ -33,7 +37,8 @@ test("PM reads the exact protected request cycle and loses origin content after 
     await expect(context.getByText("Original recorded request", { exact: true })).toBeVisible();
     await expect(context.getByText("Recorded reminder", { exact: true })).toHaveCount(2);
     await expect(context).toContainText(f.sourceMarkerA);
-    await expect(context).toContainText("Delivery impact: unknown");
+    await expect(context).toContainText("Saved baseline 2026-10-15. Saved forecast 2026-10-29.");
+    await expect(context).toContainText(`The forecast is 14 days later than the baseline. Schedule revision 1. Reviewed CSV receipt ${f.spreadsheetIntake.receiptId}.`);
     await expect(context).not.toContainText(f.admin.subject);
     await expect(page.locator("body")).not.toContainText(f.privateResponse);
     await page.screenshot({ path: "artifacts/pm-escalation-history.png", fullPage: true });
@@ -60,6 +65,6 @@ test("PM reads the exact protected request cycle and loses origin content after 
       asOf: response.escalationContext.asOf, actualProtectedRecords: records.length,
       privateReplyWithheld: true, sourceARevocationRedactsThreeOrigins: true,
       sourceBRemainsReadable: true, signOutClearsContext: true,
-      deliveryImpact: "UNKNOWN", externalDelivery: false }, null, 2) + "\n");
+      deliveryImpact: response.escalationContext.impact, externalDelivery: false }, null, 2) + "\n");
   } finally { await db.$disconnect(); }
 });

@@ -133,11 +133,18 @@ it("checks escalation ordering, retention and the explicit default", () => {
     generation: 1, ordinal: 0, capturedAt: at, contentExpiresAt: later, contentState: "PRESENT", bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "Original" };
   const context = { asOf: at, state: "AVAILABLE", impact: "UNKNOWN", originalRequestId: other, entries: [original] };
   const escalation = { ...base, stageKind: "ESCALATION", escalationContext: context };
+  const impact = { revision: 1, baseline: "2026-01-01", forecast: "2026-01-04", movementDays: 3,
+    citation: { sourceId: id, receiptId: other, reviewedAt: at, availableUntil: later } };
   const values: unknown[] = [escalation, { ...escalation, escalationContext: { ...context, entries: [] } },
     { ...escalation, stageKind: "REQUEST" }, { ...escalation, escalationContext: { ...context, entries: [{ ...original, ordinal: 1 }] } },
     { ...escalation, escalationContext: { ...context, entries: [{ ...original, contentState: "EXPIRED" }] } },
-    { ...escalation, escalationContext: { asOf: at, state: "UNAVAILABLE", impact: "UNKNOWN", originalRequestId: null, entries: [] } }];
+    { ...escalation, escalationContext: { asOf: at, state: "UNAVAILABLE", impact: "UNKNOWN", originalRequestId: null, entries: [] } },
+    { ...escalation, escalationContext: { ...context, impact } },
+    { ...escalation, escalationContext: { ...context, impact: { ...impact, movementDays: 4 } } },
+    { ...escalation, escalationContext: { ...context, impact: { ...impact, citation: { ...impact.citation, availableUntil: at } } } },
+    { ...escalation, escalationContext: { ...context, state: "UNAVAILABLE", impact, originalRequestId: null, entries: [] } }];
   for (const value of values) expect(decodeInvitation(value) !== null).toBe(projectUpdateRecipientRequestViewSchema.safeParse(value).success);
+  expect(decodeInvitation({ ...escalation, escalationContext: { ...context, impact } })?.escalationContext?.impact).toEqual(impact);
   const legacy: Record<string, unknown> = { ...base }; delete legacy.escalationContext;
   expect(decodeInvitation(legacy)?.escalationContext).toBeNull();
 });
