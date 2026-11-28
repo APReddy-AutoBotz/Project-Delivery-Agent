@@ -103,3 +103,13 @@ assessment, its policy revision and the open obligation when present. If
 source access is withdrawn, the API withholds the freshness data and its claim
 together. The existing Atlas browser case verifies the wording, references
 and withdrawal. The decoder also rejects unsupported text and mismatched IDs.
+
+## Atlas reply, action and clarification claims
+
+Render the owner reply, simulated comment, simulated escalation and open
+update clarification from validated claims. Cite the authorized response,
+action receipt, captured request or clarification and assessment records
+already loaded for the answer. Keep the existing retention deadlines and
+withhold a statement when its supporting record is unavailable. The existing
+Atlas journey checks the exact records. The decoder cases exercise altered
+wording and extended deadlines. Apply or revert the API and browser together.

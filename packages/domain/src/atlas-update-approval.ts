@@ -154,7 +154,17 @@ export function composeAtlasReceiptClaims(facts: AtlasLeadershipFacts) {
   return atlasReceiptClaimsSchema.parse(claims);
 }
 
-export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
+const atlasDetailClaimSchema = z.strictObject({
+  kind: z.enum(["OWNER_ACCESS", "PM_COMMENT", "PM_ESCALATION", "UPDATE_CLARIFICATION"]),
+  projectId: z.uuid(), asOf: z.iso.datetime(), validUntil: z.iso.datetime(),
+  claimText: z.string().min(1).max(200),
+  evidenceIds: z.array(z.uuid()).min(1).max(3),
+  provenance: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED"]),
+  freshness: z.literal("CURRENT"), conflict: z.literal("NONE"),
+  classification: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED"]),
+});
+
+const atlasLeadershipAnswerFactsSchema = atlasLeadershipFactsSchema.extend({
   receiptClaims: atlasReceiptClaimsSchema.optional(),
   delayClarificationState: z.enum(["AVAILABLE", "REQUESTED", "RESOLVED"]).optional(),
   updateFreshness: projectUpdateAssessmentViewSchema.shape.freshness.pick({
@@ -167,7 +177,8 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
       clarificationId: z.uuid(), factType: z.enum(["project.status", "project.forecast"]),
       requestedAt: z.iso.datetime(), availableUntil: z.iso.datetime(),
     }).optional(),
-  }).refine((freshness) => freshness.openObligation === (freshness.obligationId !== undefined), {
+  }).refine((freshness) => freshness.openObligation === (freshness.obligationId !== undefined) &&
+    (!freshness.activeClarification || (freshness.state === "STALE" && freshness.openObligation)), {
     path: ["obligationId"], message: "An open obligation requires its evidence ID",
   }).nullable().optional(),
   updateClaim: leadershipUpdateClaimSchema.nullable().optional(),
@@ -197,6 +208,41 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     id: z.uuid(),
     facts: atlasLeadershipFactsSchema,
   }).optional(),
+});
+
+export function composeAtlasDetailClaims(facts: Pick<z.infer<typeof atlasLeadershipAnswerFactsSchema>,
+  "projectId" | "asOf" | "ownerReply" | "receipt" | "pmEscalation" | "updateFreshness">) {
+  const { projectId, asOf, ownerReply, receipt, pmEscalation, updateFreshness } = facts;
+  type DetailClaim = z.infer<typeof atlasDetailClaimSchema>;
+  const claims: DetailClaim[] = [];
+  function add(kind: DetailClaim["kind"], claimText: string, evidenceIds: string[], validUntil: string,
+    provenance: DetailClaim["provenance"] = "SYSTEM_VERIFIED") {
+    if (Date.parse(validUntil) > Date.parse(asOf)) claims.push({
+      kind, projectId, asOf, validUntil, claimText, evidenceIds, provenance,
+      freshness: "CURRENT", conflict: "NONE", classification: provenance,
+    });
+  }
+  if (ownerReply) {
+    add("OWNER_ACCESS",
+      `The owner confirmed API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.`,
+      [ownerReply.responseId], ownerReply.availableUntil, "HUMAN_CONFIRMED");
+    if (receipt) add("PM_COMMENT", `The PM recorded a simulated comment for ${receipt.target}.`,
+      [receipt.id], ownerReply.availableUntil);
+    if (pmEscalation) add("PM_ESCALATION", "A simulated escalation was captured for the assigned PM.",
+      [pmEscalation.requestId], Date.parse(pmEscalation.availableUntil) < Date.parse(ownerReply.availableUntil)
+        ? pmEscalation.availableUntil : ownerReply.availableUntil);
+  }
+  const clarification = updateFreshness?.activeClarification;
+  if (clarification && updateFreshness?.obligationId) {
+    const fact = clarification.factType === "project.forecast" ? "forecast finish date" : "project status";
+    add("UPDATE_CLARIFICATION", `A clarification about the ${fact} is open.`,
+      [clarification.clarificationId, updateFreshness.assessmentId, updateFreshness.obligationId], clarification.availableUntil);
+  }
+  return claims;
+}
+
+export const atlasLeadershipAnswerSchema = atlasLeadershipAnswerFactsSchema.extend({
+  detailClaims: z.array(atlasDetailClaimSchema).max(4).optional(),
 }).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
   (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf))
   .refine(({ scheduleCitation, schedule }) => {
@@ -205,6 +251,7 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     return days !== null && days === schedule?.movementDays;
   })
   .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)))
+  .refine((answer) => JSON.stringify(answer.detailClaims ?? []) === JSON.stringify(composeAtlasDetailClaims(answer)))
   .refine(({ projectId, asOf, updateFreshness, updateClaim }) =>
     matchesLeadershipUpdateClaim({ projectId, asOf }, updateFreshness ?? null, updateClaim ?? null));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;

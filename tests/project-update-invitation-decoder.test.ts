@@ -3,7 +3,7 @@ import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSc
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
 import { composeLeadershipUpdateClaim, composeProjectLeadershipClaims, projectDelayClarificationReviewSchema,
   projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
-import { atlasLeadershipAnswerSchema, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
+import { atlasLeadershipAnswerSchema, composeAtlasDetailClaims, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
 import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
   decodeAtlasLeadershipAnswer, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
@@ -48,6 +48,17 @@ it("requires the saved Atlas assessment and cites an obligation only while open"
     expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(value, id)).toBeNull();
   }
+  const updateFreshness = { ...freshness, activeClarification: {
+    clarificationId: "50000000-0000-4000-8000-000000000001", factType: "project.forecast" as const,
+    requestedAt: at, availableUntil: "2026-01-03T00:00:00.000Z",
+  } };
+  const detailClaims = composeAtlasDetailClaims({ ...answer, updateFreshness });
+  const withClarification = { ...answer, updateFreshness, updateClaim, detailClaims };
+  expect(atlasLeadershipAnswerSchema.safeParse(withClarification).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(withClarification, id)).toEqual(withClarification);
+  const unsupported = { ...withClarification, updateFreshness: freshness };
+  expect(atlasLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(unsupported, id)).toBeNull();
 });
 
 it("requires exact Atlas schedule and PM statements while their supporting receipts are available", () => {
@@ -61,7 +72,9 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
       confirmedBy: "synthetic-pm", cause: "API_ACCESS_DELAY" as const, confidence: "MEDIUM" as const },
   };
   const receiptClaims = composeAtlasReceiptClaims(facts);
-  const answer = { ...facts, receiptClaims, integrationStart: null, jiraBlocker: null, pmEscalation: null };
+  const pmEscalation = { requestId: other, capturedAt: at, availableUntil };
+  const detailClaims = composeAtlasDetailClaims({ ...facts, pmEscalation });
+  const answer = { ...facts, receiptClaims, detailClaims, integrationStart: null, jiraBlocker: null, pmEscalation };
   expect(receiptClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
   expect(atlasLeadershipAnswerSchema.safeParse(answer).success).toBe(true);
   expect(decodeAtlasLeadershipAnswer(answer, id)).toEqual(answer);
@@ -75,6 +88,15 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
     receiptClaims[0], { ...receiptClaims[1], validUntil: facts.ownerReply.availableUntil },
   ]]) {
     const changed = { ...answer, receiptClaims: unsupported };
+    expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
+    expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
+  }
+  for (const unsupported of [undefined, detailClaims.slice(1), [
+    { ...detailClaims[0], claimText: "The owner restored access." }, ...detailClaims.slice(1),
+  ], [
+    ...detailClaims.slice(0, 2), { ...detailClaims[2], validUntil: facts.ownerReply.availableUntil },
+  ]]) {
+    const changed = { ...answer, detailClaims: unsupported };
     expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
   }

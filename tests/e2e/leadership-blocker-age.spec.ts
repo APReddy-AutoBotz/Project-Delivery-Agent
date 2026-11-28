@@ -64,10 +64,14 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
     if (path === `/projects/${atlas.id}/atlas-leadership-answer`) {
       const now = Date.now();
       const checkedAt = new Date(now).toISOString();
+      const replyExpiry = new Date(now + 5000).toISOString();
       const facts = { projectId: atlas.id, asOf: checkedAt,
         schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 },
-        ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: new Date(now + 5000).toISOString(),
+        ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: replyExpiry,
           accessStatus: "ACCESS_PENDING" }, receipt: null, delayAssessment: null, pmEscalation: null,
+        detailClaims: [{ kind: "OWNER_ACCESS", projectId: atlas.id, asOf: checkedAt, validUntil: replyExpiry,
+          claimText: "The owner confirmed API access was pending at the time of the reply.", evidenceIds: [id(80)],
+          provenance: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED" }],
         integrationStart: { milestoneId: id(81), planned: "2026-10-12", actual: "2026-10-13" } };
       if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null } });
       return route.fulfill({ json: { ...facts, jiraBlocker: { mappingId: id(82), issueKey: "ATLAS-248",

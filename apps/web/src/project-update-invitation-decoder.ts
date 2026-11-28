@@ -364,10 +364,48 @@ function matchesAtlasReceiptClaims(value: unknown, answer: AtlasLeadershipFacts)
   return claims.length === expected;
 }
 
+function matchesAtlasDetailClaims(detailClaims: unknown, answer: AtlasLeadershipAnswer) {
+  const { ownerReply, receipt, pmEscalation, updateFreshness } = answer;
+  const claims = detailClaims === undefined ? [] : detailClaims;
+  if (!Array.isArray(claims) || !dense(claims, claims.length, 4)) return false;
+  const entries: unknown[] = claims;
+  let index = 0;
+  function matches(kind: string, text: string, evidenceIds: string[], validUntil: string, provenance = "SYSTEM_VERIFIED") {
+    if (Date.parse(validUntil) <= Date.parse(answer.asOf)) return true;
+    const claim = entries[index++];
+    if (!object(claim)) return false;
+    const evidence = claim.evidenceIds;
+    return keys(claim,
+      ["kind", "projectId", "asOf", "validUntil", "claimText", "evidenceIds", "provenance", "freshness", "conflict", "classification"]) &&
+      claim.kind === kind && claim.projectId === answer.projectId && claim.asOf === answer.asOf &&
+      claim.validUntil === validUntil && claim.claimText === text && claim.provenance === provenance &&
+      claim.classification === provenance && claim.freshness === "CURRENT" && claim.conflict === "NONE" &&
+      dense(evidence, evidenceIds.length, evidenceIds.length) && evidenceIds.every((id, i) => id === evidence[i]);
+  }
+  if (ownerReply) {
+    if (!matches("OWNER_ACCESS",
+      `The owner confirmed API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.`,
+      [ownerReply.responseId], ownerReply.availableUntil, "HUMAN_CONFIRMED")) return false;
+    if (receipt && !matches("PM_COMMENT", `The PM recorded a simulated comment for ${receipt.target}.`, [receipt.id], ownerReply.availableUntil))
+      return false;
+    if (pmEscalation && !matches("PM_ESCALATION", "A simulated escalation was captured for the assigned PM.",
+      [pmEscalation.requestId], Date.parse(pmEscalation.availableUntil) < Date.parse(ownerReply.availableUntil)
+        ? pmEscalation.availableUntil : ownerReply.availableUntil)) return false;
+  }
+  const clarification = updateFreshness?.activeClarification;
+  if (clarification && updateFreshness?.obligationId) {
+    const fact = clarification.factType === "project.forecast" ? "forecast finish date" : "project status";
+    if (!matches("UPDATE_CLARIFICATION", `A clarification about the ${fact} is open.`,
+      [clarification.clarificationId, updateFreshness.assessmentId, updateFreshness.obligationId], clarification.availableUntil))
+      return false;
+  }
+  return index === entries.length;
+}
+
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
   const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot,
-    updateFreshness, updateClaim, delayClarificationState, receiptClaims, ...facts } = value;
+    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer || !matchesAtlasReceiptClaims(receiptClaims, answer)) return null;
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
@@ -415,7 +453,8 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
         Date.parse(prior.ownerReply.availableUntil) <= Date.parse(answer.asOf) ||
         (prior.scheduleCitation && prior.scheduleCitation.availableUntil <= answer.asOf)) return null;
   }
-  return value as AtlasLeadershipAnswer;
+  const leadership = value as AtlasLeadershipAnswer;
+  return matchesAtlasDetailClaims(detailClaims, leadership) ? leadership : null;
 }
 
 export function decodeAtlasManagementPreview(value: unknown, projectId: string): AtlasManagementPreview | null {

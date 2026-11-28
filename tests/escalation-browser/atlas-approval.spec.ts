@@ -201,6 +201,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect(restrictedAnswer).toMatchObject({ updateFreshness: null, updateClaim: null, jiraBlocker: {
       ...before.jiraBlocker, claim: { ...before.jiraBlocker.claim, assessedAt: restrictedAnswer.asOf },
     } });
+    expect(restrictedAnswer.detailClaims ?? []).not.toContainEqual(expect.objectContaining({ kind: "UPDATE_CLARIFICATION" }));
     expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
     expect((await request.post(projectPath + "/leadership-answer", protectedComparison)).status()).toBe(404);
     const fallback = await request.get(protectedReportPath, { headers: leaderHeaders });
@@ -462,6 +463,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     assessmentId: assessment.id, scheduleRevision: complete.schedule.revision,
     claimText: "The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as medium.",
   }));
+  expect(complete.detailClaims).toEqual([
+    expect.objectContaining({ kind: "OWNER_ACCESS", evidenceIds: [complete.ownerReply.responseId],
+      provenance: "HUMAN_CONFIRMED", validUntil: complete.ownerReply.availableUntil }),
+    expect.objectContaining({ kind: "PM_COMMENT", evidenceIds: [receipt.id], provenance: "SYSTEM_VERIFIED" }),
+    expect.objectContaining({ kind: "PM_ESCALATION", evidenceIds: [fixture.escalation.requestId] }),
+    expect.objectContaining({ kind: "UPDATE_CLARIFICATION", evidenceIds: [complete.updateFreshness.activeClarification.clarificationId,
+      complete.updateClaim.evidenceIds[0], authorizedUpdate.obligation.id] }),
+  ]);
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
   expect(JSON.stringify(complete)).not.toContain(editedComment);

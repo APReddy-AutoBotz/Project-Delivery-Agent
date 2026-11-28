@@ -21,7 +21,7 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasJiraBlockerClaimText, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasScheduleCitationSchema, atlasSpreadsheetOrigin, atlasSpreadsheetRow, IngestionPersistenceError,
-  composeAtlasReceiptClaims,
+  composeAtlasDetailClaims, composeAtlasReceiptClaims,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
@@ -3633,11 +3633,14 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
           milestoneId: integrationStart.milestoneId, blockerMappingId: blocker.mappingId } : undefined;
       const receiptClaims = composeAtlasReceiptClaims({ ...answer, asOf });
       const updateClaim = composeLeadershipUpdateClaim({ projectId, asOf }, updateFreshness, observedUpdate?.policyRevisionId);
+      const pmEscalation = escalation && escalation.availableUntil > asOf ? escalation : null;
+      const detailClaims = composeAtlasDetailClaims({ ...answer, asOf, updateFreshness, pmEscalation });
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, updateClaim, delayClarificationState,
         ...(receiptClaims.length > 0 && { receiptClaims }),
+        ...(detailClaims.length > 0 && { detailClaims }),
         integrationStart, forecastInference,
         jiraBlocker: blocker,
-        pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
+        pmEscalation,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
       });
     }, "ReadCommitted");
