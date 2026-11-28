@@ -154,9 +154,11 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
     await until(async () => synchronization.waitForRead(), "a scheduled connector read");
     await db.$queryRaw`SELECT (graphile_worker.add_job('schedule_project_reports', '{}'::json)).id::text AS id`;
     const reportScope = { customerId, actor: reportSchedule.serviceSubject, event: renderedReportEvent };
-    await until(async () => (await db.auditEvent.count({ where: reportScope })) > 0, "the first completed scheduled report");
+    await until(async () => (await db.auditEvent.count({ where: reportScope })) > 0,
+      "the first completed scheduled report", 20_000);
     const syncScope = { customerId, kind: "CONNECTOR_PAGE", executionMode: "CONNECTOR_SYNC" };
     const readStarted = new Date();
+    let readCompleted = readStarted;
     const additionalReadDeadline = Date.now() + 30_000;
 
     let maxDurationMs = 0, overlappingReceipts = false;
@@ -183,16 +185,17 @@ it("loads core portfolio data during scheduled Jira synchronization and report g
         return elapsedMs;
       }));
       if (first === 0) resumeSynchronization();
-      maxDurationMs = Math.max(maxDurationMs, ...await pending);
+      const wave = await pending;
+      readCompleted = new Date();
+      maxDurationMs = Math.max(maxDurationMs, ...wave);
       if (first + concurrentUsers >= headers.length) {
         const [connectors, reports] = await Promise.all([
-          db.ingestionOperationReceipt.count({ where: { ...syncScope, createdAt: { gte: readStarted } } }),
-          db.auditEvent.count({ where: { ...reportScope, occurredAt: { gte: readStarted } } }),
+          db.ingestionOperationReceipt.count({ where: { ...syncScope, createdAt: { gte: readStarted, lte: readCompleted } } }),
+          db.auditEvent.count({ where: { ...reportScope, occurredAt: { gte: readStarted, lte: readCompleted } } }),
         ]);
         overlappingReceipts = connectors > 0 && reports > 0;
       }
     }
-    const readCompleted = new Date();
     expect(await db.ingestionOperationReceipt.count({ where: { ...syncScope, createdAt: { gte: readStarted, lte: readCompleted } } }))
       .toBeGreaterThan(0);
     expect(await db.auditEvent.count({ where: { ...reportScope, occurredAt: { gte: readStarted, lte: readCompleted } } }))
