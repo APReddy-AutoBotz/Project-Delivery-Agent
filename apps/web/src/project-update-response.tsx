@@ -2,13 +2,13 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Message } from "./components.js";
 import type { RequestFn } from "./canonical-project.js";
-import { decodeInvitation, decodeInvitationReceipt } from "./project-update-invitation-decoder.js";
+import { atlasScheduleMovementText, decodeInvitation, decodeInvitationReceipt } from "./project-update-invitation-decoder.js";
 import { CanonicalCreationWriteRegistry, canonicalCommandFingerprint, canonicalCreationOwner } from "./canonical-creation-write-registry.js";
 import { ManagedReadRegistry } from "./managed-read-registry.js";
 import { managedRead } from "./managed-read.js";
 import type { CapturedReplyInterpretation, CapturedUpdateFactType, ProjectUpdateCaptureHistory as CaptureHistory, ProjectUpdateRecipientRequestView,
   ProjectUpdateClarificationReceipt, ProjectUpdateFactConfirmation, ProjectUpdateFactConfirmationReceipt,
-  ProjectUpdateStatusConfirmationReceipt } from "@pdaa/domain";
+  ProjectUpdateStatusConfirmationReceipt, ProjectUpdateEscalationContext } from "@pdaa/domain";
 import { ConfirmAtlasReply } from "./atlas-update-approval.js";
 import "./project-update-response.css";
 
@@ -17,34 +17,36 @@ type ResponseEntry = { id: string; submittedBy: string; receivedAt: string;
 type RecipientRequest = { requestId: string; project: { id: string; code: string; name: string };
   stageKind: string; dueAt: string; capturedAt: string; expiresAt: string; body: string;
   requiredFacts: ProjectUpdateRecipientRequestView["requiredFacts"];
-  rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: EscalationContext | null;
+  rawResponseReaders: string[]; responses: ResponseEntry[]; escalationContext?: ProjectUpdateEscalationContext | null;
   atlasInterpretation?: ProjectUpdateRecipientRequestView["atlasInterpretation"];
   clarification?: ProjectUpdateRecipientRequestView["clarification"] };
 const invitationReads = new ManagedReadRegistry(8);
 const invitationWrites = new CanonicalCreationWriteRegistry();
 
-type EscalationContext = { asOf: string; state: "AVAILABLE" | "UNAVAILABLE"; impact: "UNKNOWN";
-  originalRequestId: string | null; entries: Array<{ requestId: string; stageId: string;
-    stageKind: "REQUEST" | "REMINDER" | "ESCALATION"; generation: number; ordinal: number;
-    capturedAt: string; contentExpiresAt: string; contentState: "PRESENT" | "EXPIRED" | "RESTRICTED";
-    bodyProjection: "REVIEWER_NAMES_WITHHELD"; body: string | null }> };
-
-function EscalationHistory({ context }: { context: EscalationContext }) {
+function EscalationHistory({ context }: { context: ProjectUpdateEscalationContext }) {
   const [expiryVersion, setExpiryVersion] = useState(0);
+  const impact = context.impact === "UNKNOWN" ? null : context.impact;
+  const impactDeadline = impact?.citation?.availableUntil;
   useEffect(() => {
     const now = Date.now();
     const deadlines = context.entries.filter((entry) => entry.contentState === "PRESENT")
       .map((entry) => Date.parse(entry.contentExpiresAt)).filter((deadline) => deadline > now);
+    if (impactDeadline && Date.parse(impactDeadline) > now) deadlines.push(Date.parse(impactDeadline));
     if (!deadlines.length) return;
     const timer = window.setTimeout(() => setExpiryVersion((version) => version + 1),
       Math.min(2147483647, Math.max(1, Math.min(...deadlines) - now)));
     return () => window.clearTimeout(timer);
-  }, [context, expiryVersion]);
+  }, [context, impactDeadline, expiryVersion]);
+  const visibleImpact = impact && (!impactDeadline || Date.parse(impactDeadline) > Date.now()) ? impact : null;
   return <section aria-label="Escalation request history">
     <h3>Current-cycle request history</h3>
     <p>Read as of {context.asOf}. Historical request text is not a current confirmed fact.
       Reviewer names are withheld in this history view.</p>
-    <p>Delivery impact: unknown. Confirmation belongs to the existing update workflow.</p>
+    {!visibleImpact ? <p>Delivery impact is unknown.</p> : <p>
+      Saved baseline {visibleImpact.baseline}. Saved forecast {visibleImpact.forecast}.{" "}
+      {atlasScheduleMovementText(visibleImpact.movementDays)} Schedule revision {visibleImpact.revision}.
+      {visibleImpact.citation && ` Reviewed CSV receipt ${visibleImpact.citation.receiptId}.`}
+    </p>}
     {context.state === "UNAVAILABLE" ? <p>Request history is currently unavailable.</p> :
       <ol>{context.entries.map((entry) => {
         const expired = entry.contentState === "EXPIRED" || Date.parse(entry.contentExpiresAt) <= Date.now();

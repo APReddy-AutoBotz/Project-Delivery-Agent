@@ -149,6 +149,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const manager = await request.post("/api/auth/development", { data: { persona: "pm-atlas" } });
   expect(manager.status()).toBe(200);
   const managerHeaders = { Authorization: "Bearer " + (await manager.json()).token };
+  const escalationInvitationPath = "/api/project-update-invitations/" + fixture.escalation.locator;
+  const pmEscalation = await request.get(escalationInvitationPath, { headers: managerHeaders });
+  expect(pmEscalation.status()).toBe(200);
+  expect((await pmEscalation.json()).escalationContext).toMatchObject({
+    state: "AVAILABLE", impact: { ...before.schedule, citation: before.scheduleCitation },
+  });
   const updateAssessment = await request.get(projectPath + "/project-update-assessments/latest", { headers: managerHeaders });
   expect(updateAssessment.status()).toBe(200);
   const authorizedUpdate = await updateAssessment.json();
@@ -501,7 +507,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const configureSpreadsheet = (allowed: boolean) => request.post("/api/ingestion/sources/configuration", {
     headers: reviewerHeaders,
     data: { ...configuration, projects: configuration.projects.map((project: { readers: string[] }) => ({
-      ...project, readers: project.readers.filter((subject) => allowed || subject !== "leader-atlas"),
+      ...project, readers: project.readers.filter((subject) => allowed || !["leader-atlas", "pm-atlas"].includes(subject)),
     })) },
   });
   expect((await configureSpreadsheet(false)).status()).toBe(201);
@@ -515,6 +521,9 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     await expect(answer.getByRole("link", { name: "Integration start evidence" })).toBeVisible();
     await expect(answer).not.toContainText(spreadsheet.receiptId);
     expect((await request.get(`${reportPath}?snapshotId=${snapshot.id}`, { headers: leaderHeaders })).status()).toBe(404);
+    const restrictedEscalation = await request.get(escalationInvitationPath, { headers: managerHeaders });
+    expect(restrictedEscalation.status()).toBe(200);
+    expect((await restrictedEscalation.json()).escalationContext).toMatchObject({ state: "AVAILABLE", impact: "UNKNOWN" });
   } finally {
     expect((await configureSpreadsheet(true)).status()).toBe(201);
   }

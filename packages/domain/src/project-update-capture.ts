@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { canonicalSubjectSchema } from "./canonical-project.js";
-import { atlasSuggestionStatusSchema } from "./atlas-update-approval.js";
+import { atlasScheduleCitationSchema, atlasSuggestionStatusSchema } from "./atlas-update-approval.js";
+import { projectLeadershipScheduleSchema } from "./project-leadership-answer.js";
+import { calendarDayDifference } from "./overdue-signals.js";
 import {
   projectUpdateFactReferenceSchema,
   projectUpdateKnownPositionSchema,
@@ -214,11 +216,17 @@ export const projectUpdateResponseHistorySchema = z.strictObject({
   contentState: z.enum(["PRESENT", "EXPIRED"]),
   text: z.string().nullable(),
 });
-// FR-ESC-005: current-cycle workflow history, not a new fact assessment.
+const escalationScheduleImpactSchema = projectLeadershipScheduleSchema.extend({
+  revision,
+  baseline: z.iso.date(), forecast: z.iso.date(), movementDays: z.number().int(),
+  citation: atlasScheduleCitationSchema.optional(),
+}).refine(({ baseline, forecast, movementDays }) => calendarDayDifference(forecast, baseline) === movementDays);
+
+// FR-ESC-005: saved schedule evidence alongside current-cycle workflow history.
 export const projectUpdateEscalationContextSchema = z.strictObject({
   asOf: instant,
   state: z.enum(["AVAILABLE", "UNAVAILABLE"]),
-  impact: z.literal("UNKNOWN"),
+  impact: z.union([z.literal("UNKNOWN"), escalationScheduleImpactSchema]),
   originalRequestId: z.uuid().nullable(),
   entries: z.array(z.strictObject({
     requestId: z.uuid(), stageId: z.uuid(),
@@ -233,10 +241,13 @@ export const projectUpdateEscalationContextSchema = z.strictObject({
 }).superRefine((value, context) => {
   const invalid = () => context.addIssue({ code: "custom", message: "Invalid escalation history" });
   if (value.state === "UNAVAILABLE") {
-    if (value.originalRequestId !== null || value.entries.length !== 0) invalid();
+    if (value.impact !== "UNKNOWN" || value.originalRequestId !== null || value.entries.length !== 0) invalid();
     return;
   }
   const first = value.entries[0];
+  if (value.impact !== "UNKNOWN" && value.impact.citation &&
+      (Date.parse(value.impact.citation.reviewedAt) > Date.parse(value.asOf) ||
+       Date.parse(value.impact.citation.availableUntil) <= Date.parse(value.asOf))) invalid();
   if (!first || first.requestId !== value.originalRequestId || first.stageKind !== "REQUEST" ||
       value.entries.filter((entry) => entry.stageKind === "REQUEST").length !== 1 ||
       new Set(value.entries.map((entry) => entry.requestId)).size !== value.entries.length ||

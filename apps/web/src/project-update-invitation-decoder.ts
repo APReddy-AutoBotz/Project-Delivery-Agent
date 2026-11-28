@@ -33,10 +33,19 @@ const response = (value: unknown) => object(value) && keys(value, ["id", "submit
 function escalation(value: unknown, capturedAt: string, stageKind: unknown): boolean {
   if (value === null || value === undefined) return true;
   if (!object(value) || !keys(value, ["asOf", "state", "impact", "originalRequestId", "entries"]) || !instant(value.asOf) ||
-      stageKind !== "ESCALATION" || Date.parse(value.asOf) < Date.parse(capturedAt) || value.impact !== "UNKNOWN" ||
+      stageKind !== "ESCALATION" || Date.parse(value.asOf) < Date.parse(capturedAt) ||
       (value.state !== "AVAILABLE" && value.state !== "UNAVAILABLE") || !dense(value.entries, 0, 20) ||
       (value.originalRequestId !== null && !uuid(value.originalRequestId))) return false;
-  if (value.state === "UNAVAILABLE") return value.originalRequestId === null && value.entries.length === 0;
+  if (value.state === "UNAVAILABLE")
+    return value.impact === "UNKNOWN" && value.originalRequestId === null && value.entries.length === 0;
+  if (value.impact !== "UNKNOWN") {
+    if (!object(value.impact)) return false;
+    const { citation, ...dates } = value.impact;
+    const impact = decodeAtlasSchedule(dates);
+    if (!impact || impact.revision > 2147483647 || impact.movementDays === null ||
+        impact.movementDays !== scheduleMovement(impact) ||
+        (citation !== undefined && !validScheduleCitation(citation, value.asOf))) return false;
+  }
   const requestIds = new Set<string>(), stageIds = new Set<string>();
   let previous: Record<string, unknown> | undefined;
   for (const [index, raw] of value.entries.entries()) {
@@ -103,6 +112,10 @@ function decodeAtlasSchedule(value: unknown): AtlasSchedule | null {
 const date = (value: unknown): value is string => typeof value === "string" && instant(value + "T00:00:00.000Z");
 const scheduleMovement = ({ baseline, forecast }: AtlasSchedule) => baseline && forecast
   ? (Date.parse(forecast) - Date.parse(baseline)) / 86400000 : null;
+const validScheduleCitation = (value: unknown, asOf: string) => object(value) &&
+  keys(value, ["sourceId", "receiptId", "reviewedAt", "availableUntil"]) &&
+  uuid(value.sourceId) && uuid(value.receiptId) && instant(value.reviewedAt) && instant(value.availableUntil) &&
+  Date.parse(value.reviewedAt) <= Date.parse(asOf) && Date.parse(value.availableUntil) > Date.parse(asOf);
 
 function validProjectLeadershipFacts(value: Record<string, unknown>): value is Record<string, unknown> & { asOf: string } {
   if (!instant(value.asOf)) return false;
@@ -254,10 +267,7 @@ function decodeAtlasLeadershipFacts(value: unknown, projectId: string): AtlasLea
   const schedule = decodeAtlasSchedule(value.schedule);
   if (value.schedule !== null && !schedule) return null;
   const citation = value.scheduleCitation;
-  if (citation !== undefined && (!schedule?.baseline || !schedule.forecast || !object(citation) ||
-      !keys(citation, ["sourceId", "receiptId", "reviewedAt", "availableUntil"]) ||
-      !uuid(citation.sourceId) || !uuid(citation.receiptId) || !instant(citation.reviewedAt) || !instant(citation.availableUntil) ||
-      citation.reviewedAt > value.asOf || citation.availableUntil <= value.asOf)) return null;
+  if (citation !== undefined && (!schedule?.baseline || !schedule.forecast || !validScheduleCitation(citation, value.asOf))) return null;
   const reply = value.ownerReply;
   if (reply !== null && (!object(reply) || !keys(reply, ["responseId", "receivedAt", "availableUntil", "accessStatus"]) ||
       !uuid(reply.responseId) || !instant(reply.receivedAt) || !instant(reply.availableUntil) ||
