@@ -189,6 +189,45 @@ INT-CON-006 and SEC-CON-001. Live Jira staging remains parked.
 [Credential failure main checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/36225662968) ·
 [Current native checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/job/140775052476).
 
+## Quiet-hour reminder deferral
+
+AC-UPD-007 combines the recipient-local scheduling and dispatch decisions
+with the packaged reminder storage proof. The existing tests verify the next
+allowed time and the `QUIET_HOURS` reason. Both packaged database profiles
+retain that reason and the deferred time on the synthetic reminder stage
+alongside its queued intent.
+Customer email delivery and configurable channels retain their own criteria.
+[Main code checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/job/140775052550) ·
+[Main native checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/job/140775052476) ·
+[Packaged evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46079535098/artifacts/15236598510).
+
+## Packaged monitoring and reporting with AI disabled
+
+AC-DEP-004 uses the packaged customer deployment with its configured
+synthetic OIDC identity and no reply-interpreter configuration. In both
+database profiles, the Jira connector executes its scheduled read path
+against synthetic responses, and the existing reviewed Excel import adds
+its evidence for that project. The PMO measures stale update freshness
+and runs a health assessment that can be reopened. Leadership generates a
+manual draft with the same saved freshness and an editable PowerPoint.
+Endpoint switching and backup reconciliation retain their own criteria
+under STORY-036.
+[Implementation PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/265) ·
+[Main packaged evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46084578730/artifacts/15238782453).
+
+## Packaged configuration variance
+
+The bundled and external database profiles ran on identical product image
+references. They used different source mappings, forecast labels, update
+freshness, escalation timing, overdue thresholds and report approvers.
+Both rejected an invalid time zone. The saved health assessment used the
+configured threshold, and the saved report routed its exact revision to the
+configured PM. The harness sets these settings on the installed application.
+This covers the configuration proof in AC-MNT-001. Scheduled escalation,
+additional report formats and observed pilot results require their own evidence.
+[Implementation PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/264) ·
+[Main packaged evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46083388097/artifacts/15238477925).
+
 ## Reply clarification and confirmation acceptance
 
 STORY-021 covers the existing clarification and explicit interpretation
