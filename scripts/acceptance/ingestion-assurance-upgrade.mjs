@@ -352,6 +352,7 @@ export async function verifyIngestionAssuranceUpgrade(sourceUrl) {
     assert.deepEqual(afterLedger.slice(0, 39), before40Ledger);
     assert.deepEqual(afterLedger[39], { migration_name: migrations[39].name, checksum: migrations[39].checksum });
     assert.deepEqual(afterLedger[40], { migration_name: migrations[40].name, checksum: migrations[40].checksum });
+    assert.deepEqual(afterLedger[41], { migration_name: migrations[41].name, checksum: migrations[41].checksum });
     console.log("Populated released-24 upgrade retained all 24 checksums and its exact failure fence; a real available cause remained uncharged, then completed after only that fence was cleared.");
     return { priorMigrationCount: 24, databaseName: name, retainedLegacyFailureFence: true, scanBlockedByFence: true,
       availableCauseUncharged: true, positiveControlCompleted: true, retainedPriorChecksums: 24,

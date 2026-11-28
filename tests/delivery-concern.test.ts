@@ -134,7 +134,7 @@ describe("STORY-015 composed delivery concern", () => {
   });
 
   it("only allows the legacy fallback above the exact UTF-8 envelope limit", () => {
-    const exact = "é".repeat(131072);
+    const exact = "é".repeat(224 * 1024);
     expect(checkHealthAssessmentContentSize(exact, exact, false)).toBe(true);
     expect(checkHealthAssessmentContentSize(exact + "a", exact, true)).toBe(false);
     expect(() => checkHealthAssessmentContentSize(exact, exact + "a", false)).toThrow("UNAVAILABLE");

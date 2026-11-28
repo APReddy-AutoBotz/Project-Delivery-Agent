@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Actor } from "./actor.js";
-import { canonicalKeySchema, canonicalDateSchema, canonicalWorkItemLimit } from "./canonical-project.js";
+import { canonicalKeySchema, canonicalDateSchema, canonicalMilestoneLimit, canonicalWorkItemLimit } from "./canonical-project.js";
 import { calendarDayDifference, evaluateOverdueSignals } from "./overdue-signals.js";
 import {
   criticalDeliveryTargetsSchema,
@@ -108,13 +108,14 @@ const scheduleRecord = z.strictObject({
   forecastEnd: canonicalDateSchema.nullable(),
   plannedEnd: canonicalDateSchema.nullable(),
 });
+export const scheduleHealthSignalLimit = canonicalMilestoneLimit + canonicalWorkItemLimit;
 export const scheduleHealthSnapshotSchema = z.strictObject({
   projectId: safeId,
   projectRevision: z.number().int().min(0).max(2147483647).nullable(),
   reportedStatus: rag,
   assessedAt: instant,
   scheduleHealthPolicy: scheduleHealthPolicySnapshotSchema.optional(),
-  milestones: z.array(scheduleRecord).max(50),
+  milestones: z.array(scheduleRecord).max(canonicalMilestoneLimit),
   workItems: z.array(scheduleRecord).max(canonicalWorkItemLimit),
 });
 export type ScheduleHealthSnapshot = z.infer<typeof scheduleHealthSnapshotSchema>;

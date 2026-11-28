@@ -1,4 +1,4 @@
-import { canonicalWorkItemLimit } from "@pdaa/domain";
+import { canonicalMilestoneLimit, canonicalWorkItemLimit } from "@pdaa/domain";
 import type { Prisma } from "./generated/prisma/client.js";
 
 type Tx = Prisma.TransactionClient;
@@ -24,7 +24,7 @@ export async function preflightMilestoneCanonicalProject(
       p."workItemsCount", p."requiredWorkItemsCount", p."raidItemsCount", p."sourceMappingsCount",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."ProjectResponsibility" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "responsibilitiesActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."Sprint" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "sprintsActual",
-      (SELECT count(*)::int FROM (SELECT 1 FROM public."Milestone" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "milestonesActual",
+      (SELECT count(*)::int FROM (SELECT 1 FROM public."Milestone" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT ${canonicalMilestoneLimit + 1}) q) AS "milestonesActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."WorkItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT ${canonicalWorkItemLimit + 1}) q) AS "workItemsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."RequiredWorkItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "requiredWorkItemsActual",
       (SELECT count(*)::int FROM (SELECT 1 FROM public."RaidItem" c WHERE c."customerId"=p."customerId" AND c."projectId"=p.id LIMIT 51) q) AS "raidItemsActual",
@@ -41,7 +41,7 @@ export async function preflightMilestoneCanonicalProject(
   const pairs = [
     [row.responsibilitiesCount, row.responsibilitiesActual, 50],
     [row.sprintsCount, row.sprintsActual, 50],
-    [row.milestonesCount, row.milestonesActual, 50],
+    [row.milestonesCount, row.milestonesActual, canonicalMilestoneLimit],
     [row.workItemsCount, row.workItemsActual, canonicalWorkItemLimit],
     [row.requiredWorkItemsCount, row.requiredWorkItemsActual, 50],
     [row.raidItemsCount, row.raidItemsActual, 50],

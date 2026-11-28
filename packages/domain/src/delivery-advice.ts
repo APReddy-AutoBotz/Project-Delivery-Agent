@@ -10,6 +10,7 @@ import {
 } from "./delivery-health.js";
 import {
   buildScheduleHealthAssessment,
+  scheduleHealthSignalLimit,
   scheduleHealthSnapshotSchema,
   type HealthAssessmentRepository,
 } from "./health-assessment.js";
@@ -176,7 +177,7 @@ const scheduleTrigger = z.discriminatedUnion("kind", [
       rule: deliveryHealthCalculationRuleSchema,
       rationale: z.strictObject({ code: z.string(), text: z.string(), signalIds: z.array(canonicalKeySchema) }),
     }),
-    objectiveSignals: z.array(scheduleSignal).max(100),
+    objectiveSignals: z.array(scheduleSignal).max(scheduleHealthSignalLimit),
     contradiction: z.strictObject({
       kind: z.literal("REPORTED_CALCULATED_MISMATCH"),
       severity: urgency,
@@ -213,7 +214,7 @@ export const scheduleAdviceSnapshotSchema = z.strictObject({
     trigger: scheduleTrigger,
     suggestedAction: z.string(),
     expectedOutcome: z.string(),
-  })).max(101),
+  })).max(scheduleHealthSignalLimit + 1),
 }).superRefine((snapshot, context) => {
   for (const [index, item] of snapshot.items.entries()) {
     const trigger = item.trigger;

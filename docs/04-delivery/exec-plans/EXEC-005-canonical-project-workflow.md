@@ -69,7 +69,8 @@ items across 200 active projects. The creation form, API, database constraint,
 health assessment, and milestone preflight accept 100 work items per project.
 The aggregate limit, relationship limits, authorization and evidence rules
 remain in force. The existing canonical integration case creates and reads
-100 work items with 50 milestones and calculates health for the same project.
+100 work items with 50 milestones, calculates health and verifies the schedule
+suggestions and PM queue for the same project.
 Each stored health payload is bounded to 448 KiB so that all schedule
 signals fit within the browser's existing response budget. Clean install,
 upgrade and recovery use the existing migration ledger checks.

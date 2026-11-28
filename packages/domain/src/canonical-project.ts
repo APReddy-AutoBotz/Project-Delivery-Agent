@@ -168,12 +168,13 @@ const sourceMapping = z.strictObject({
   ]),
   targetKey: key.nullable(),
 });
+export const canonicalMilestoneLimit = 50;
 export const canonicalWorkItemLimit = 100;
 
 export const canonicalCollectionsSchema = z.strictObject({
   responsibilities: z.array(responsibility).max(50),
   sprints: z.array(sprint).max(50),
-  milestones: z.array(milestone).max(50),
+  milestones: z.array(milestone).max(canonicalMilestoneLimit),
   workItems: z.array(workItem).max(canonicalWorkItemLimit),
   requiredWorkItems: z.array(requiredWorkItem).max(50),
   raidItems: z.array(raidItem).max(50),
@@ -348,7 +349,7 @@ export const canonicalProjectDetailSchema = z.strictObject({
   dates: canonicalDatesSchema,
   responsibilities: z.array(responsibility.extend(id)).max(50),
   sprints: z.array(sprint.extend(id)).max(50),
-  milestones: z.array(milestone.extend(id)).max(50),
+  milestones: z.array(milestone.extend(id)).max(canonicalMilestoneLimit),
   workItems: z.array(workItem.extend(id)).max(canonicalWorkItemLimit),
   requiredWorkItems: z.array(requiredWorkItem).max(50),
   raidItems: z.array(raidItem.extend(id)).max(50),

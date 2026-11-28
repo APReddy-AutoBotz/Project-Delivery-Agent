@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { scheduleAdviceSnapshotSchema } from "./delivery-advice.js";
+import { scheduleHealthSignalLimit } from "./health-assessment.js";
 import { updateAdviceSnapshotSchema } from "./update-advice.js";
 import { blockerAgeAdviceSchema } from "./blocker-age-advice.js";
 import { atlasJiraBlockerKey } from "./atlas-update-approval.js";
@@ -20,7 +21,7 @@ const project = z.strictObject({
 const priority = z.enum(["CRITICAL", "HIGH", "MEDIUM", "LOW"]);
 const scheduleCategory = z.enum(["RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"]);
 const pointer = z.discriminatedUnion("facet", [
-  z.strictObject({ projectId: z.uuid(), facet: z.literal("SCHEDULE"), index: z.number().int().min(0).max(100),
+  z.strictObject({ projectId: z.uuid(), facet: z.literal("SCHEDULE"), index: z.number().int().min(0).max(scheduleHealthSignalLimit),
     key: z.string(), priority, category: scheduleCategory }),
   z.strictObject({ projectId: z.uuid(), facet: z.literal("UPDATE"), index: z.null(),
     key: z.literal("update-information"), priority: z.literal("MEDIUM"), category: z.literal("UPDATE_FOLLOW_UP") }),

@@ -33323,7 +33323,7 @@
                       ]
                     },
                     "items": {
-                      "maxItems": 101,
+                      "maxItems": 151,
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -33981,7 +33981,7 @@
                                     "additionalProperties": false
                                   },
                                   "objectiveSignals": {
-                                    "maxItems": 100,
+                                    "maxItems": 150,
                                     "type": "array",
                                     "items": {
                                       "type": "object",
@@ -62956,7 +62956,7 @@
                                 ]
                               },
                               "items": {
-                                "maxItems": 101,
+                                "maxItems": 151,
                                 "type": "array",
                                 "items": {
                                   "type": "object",
@@ -63614,7 +63614,7 @@
                                               "additionalProperties": false
                                             },
                                             "objectiveSignals": {
-                                              "maxItems": 100,
+                                              "maxItems": 150,
                                               "type": "array",
                                               "items": {
                                                 "type": "object",
@@ -66897,7 +66897,7 @@
                               "index": {
                                 "type": "integer",
                                 "minimum": 0,
-                                "maximum": 100
+                                "maximum": 150
                               },
                               "key": {
                                 "type": "string"

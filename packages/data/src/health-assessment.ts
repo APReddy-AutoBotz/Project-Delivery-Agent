@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   canonicalActorSchema,
+  canonicalMilestoneLimit,
   canonicalWorkItemLimit,
   buildScheduleHealthAssessment,
   buildScheduleAdviceSnapshot,
@@ -443,13 +444,14 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT $3';
       const milestones = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
-            rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, 51)
+            rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, canonicalMilestoneLimit + 1)
         : [];
       const workItems = canonical[0]
         ? await tx.$queryRawUnsafe<{ id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null }[]>(
             rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id, canonicalWorkItemLimit + 1)
         : [];
-      if (milestones.length > 50 || workItems.length > canonicalWorkItemLimit) throw new HealthAssessmentError("UNAVAILABLE");
+      if (milestones.length > canonicalMilestoneLimit || workItems.length > canonicalWorkItemLimit)
+        throw new HealthAssessmentError("UNAVAILABLE");
 
       const blockerAge = await buildBlockerAgeAssessmentInTransaction(
         tx,
@@ -683,12 +685,13 @@ export class DatabaseHealthAssessmentRepository implements HealthAssessmentRepos
       const rowSql = 'SELECT id,key,state,"forecastEnd","plannedEnd" FROM public."TABLE" WHERE "customerId"=$1::uuid AND "projectId"=$2::uuid ORDER BY key,id LIMIT $3';
       type ScheduleRow = { id: string; key: string; state: string; forecastEnd: Date | null; plannedEnd: Date | null };
       const milestones = canonical[0]
-        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, 51)
+        ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"Milestone"'), current.customerId, id, canonicalMilestoneLimit + 1)
         : [];
       const workItems = canonical[0]
         ? await tx.$queryRawUnsafe<ScheduleRow[]>(rowSql.replace('"TABLE"', '"WorkItem"'), current.customerId, id, canonicalWorkItemLimit + 1)
         : [];
-      if (milestones.length > 50 || workItems.length > canonicalWorkItemLimit) throw new HealthAssessmentError("UNAVAILABLE");
+      if (milestones.length > canonicalMilestoneLimit || workItems.length > canonicalWorkItemLimit)
+        throw new HealthAssessmentError("UNAVAILABLE");
       const asOf = (await this.now(tx)).toISOString();
       const date = (value: Date | null) => value?.toISOString().slice(0, 10) ?? null;
       const convert = (row: ScheduleRow) => ({ ...row, forecastEnd: date(row.forecastEnd), plannedEnd: date(row.plannedEnd) });

@@ -26,6 +26,7 @@ const scalar = (value: unknown) => {
       !(typeof value === "number" && Number.isFinite(value))) fail();
 };
 const priorities = ["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const;
+const scheduleSignalLimit = 150;
 const categories = ["APPROVAL", "BLOCKER_REVIEW", "UPDATE_FOLLOW_UP", "RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"] as const;
 const identifier = (value: unknown) => {
   const id = string(value);
@@ -184,7 +185,7 @@ export function decodePmQueue(value: unknown): PmActionQueue {
         schedule.rankPolicyRevision !== "advice-core@1") fail();
     instant(schedule.asOf); instant(update.asOf);
     const keys = new Set<string>();
-    for (const [index, value] of array(schedule.items, 101).entries()) {
+    for (const [index, value] of array(schedule.items, scheduleSignalLimit + 1).entries()) {
       const item = object(value), rule = object(item.triggeringRule), trigger = object(item.trigger);
       const key = string(item.concernKey), urgency = oneOf(item.urgency, priorities);
       const category = oneOf(item.category, ["RECONCILIATION", "SCHEDULE_REVIEW", "EVIDENCE_REVIEW"] as const);
@@ -202,7 +203,7 @@ export function decodePmQueue(value: unknown): PmActionQueue {
         if (category !== "RECONCILIATION") fail();
         oneOf(reported.status, ["GREEN", "AMBER", "RED", "UNKNOWN"] as const);
         oneOf(calculated.status, ["GREEN", "AMBER", "RED", "UNKNOWN"] as const); fact(reported.sourceFact);
-        for (const source of array(trigger.objectiveSignals, 100)) signal(source);
+        for (const source of array(trigger.objectiveSignals, scheduleSignalLimit)) signal(source);
       } else fail();
       expected.push({ projectId, facet: "SCHEDULE", index, key, priority: urgency, category });
     }
