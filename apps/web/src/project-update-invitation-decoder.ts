@@ -518,7 +518,7 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
 function validAtlasComparison(claims: unknown, answer: AtlasLeadershipAnswer) {
   if (!answer.priorSnapshot) return claims === undefined;
   const { id, facts: saved } = answer.priorSnapshot;
-  const proof = answer.scheduleCitation?.receiptId ?? answer.canonicalCreationReceiptId;
+  const proof = answer.schedule ? answer.scheduleCitation?.receiptId ?? answer.canonicalCreationReceiptId : undefined;
   const schedule = proof ? answer.schedule : null;
   const deadline = (previous?: string, current?: string) =>
     previous && current ? (Date.parse(previous) <= Date.parse(current) ? previous : current) : previous ?? current ?? null;
@@ -534,9 +534,9 @@ function validAtlasComparison(claims: unknown, answer: AtlasLeadershipAnswer) {
     ["Owner-confirmed API access", ownerAccess(saved.ownerReply), ownerAccess(answer.ownerReply),
       saved.ownerReply?.responseId, answer.ownerReply?.responseId, replyDeadline],
     ["Simulated Jira action", action(saved.receipt), action(answer.receipt), saved.receipt?.id, answer.receipt?.id, replyDeadline],
-    ["PM-confirmed cause", saved.delayAssessment ? "API access delay" : null, answer.delayAssessment ? "API access delay" : null,
+    ["PM-confirmed cause", saved.delayAssessment ? "API access delay" : "Unknown", answer.delayAssessment ? "API access delay" : "Unknown",
       saved.delayAssessment?.id, answer.delayAssessment?.id, assessmentDeadline],
-    ["PM forecast confidence", saved.delayAssessment?.confidence.toLowerCase() ?? null, answer.delayAssessment?.confidence.toLowerCase() ?? null,
+    ["PM forecast confidence", saved.delayAssessment?.confidence.toLowerCase() ?? "unknown", answer.delayAssessment?.confidence.toLowerCase() ?? "unknown",
       saved.delayAssessment?.id, answer.delayAssessment?.id, assessmentDeadline],
   ]);
 }

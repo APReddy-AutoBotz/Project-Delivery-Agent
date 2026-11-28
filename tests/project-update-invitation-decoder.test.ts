@@ -124,6 +124,22 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
   expect(decodeAtlasLeadershipAnswer(comparison, id)).toEqual(comparison);
   expect(comparisonClaims.map(({ field }) => field)).toEqual(["PM-confirmed cause", "PM forecast confidence"]);
   expect(comparisonClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
+  const unknownConfidence = { ...compared, delayAssessment: { ...facts.delayAssessment, confidence: "UNKNOWN" as const } };
+  const unchangedConfidence = { ...unknownConfidence, receiptClaims: composeAtlasReceiptClaims(unknownConfidence),
+    comparisonClaims: composeAtlasComparisonClaims(unknownConfidence) };
+  expect(unchangedConfidence.comparisonClaims.map(({ field }) => field)).toEqual(["PM-confirmed cause"]);
+  expect(atlasLeadershipAnswerSchema.safeParse(unchangedConfidence).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(unchangedConfidence, id)).toEqual(unchangedConfidence);
+  const missingSchedule = { ...compared, schedule: null, scheduleCitation: undefined, delayAssessment: null,
+    canonicalCreationReceiptId: "50000000-0000-4000-8000-000000000001", receiptClaims: [] };
+  const unavailableComparison = { ...missingSchedule, detailClaims: composeAtlasDetailClaims(missingSchedule),
+    comparisonClaims: composeAtlasComparisonClaims(missingSchedule) };
+  expect(unavailableComparison.comparisonClaims).toMatchObject([
+    { field: "Baseline date", after: null, evidenceIds: [priorSnapshot.id] },
+    { field: "Forecast date", after: null, evidenceIds: [priorSnapshot.id] },
+  ]);
+  expect(atlasLeadershipAnswerSchema.safeParse(unavailableComparison).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(unavailableComparison, id)).toEqual(unavailableComparison);
   const unsupported = { ...comparison, comparisonClaims: comparisonClaims.map((claim) => ({ ...claim, after: "high" })) };
   expect(atlasLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
   expect(decodeAtlasLeadershipAnswer(unsupported, id)).toBeNull();
