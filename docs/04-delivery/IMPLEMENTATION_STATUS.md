@@ -1,17 +1,18 @@
 # Implementation Status
 
-Updated: 2026-11-27
+Updated: 2026-11-28
 
 ## Accepted implementation completion
 
 | Release | Accepted merged stories | Total approved stories | Completion |
 | ------- | ----------------------: | ---------------------: | ---------: |
 | R0      |                       3 |                      5 |        60% |
-| R1      |                      16 |                     33 |      48.5% |
-| Total   |                      19 |                     38 |      50.0% |
+| R1      |                      17 |                     33 |      51.5% |
+| Total   |                      20 |                     38 |      52.6% |
 
 These counts reflect the accepted-story registry, including the
-[STORY-031 snapshot record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance),
+[STORY-030 project and portfolio views record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#project-and-portfolio-views-acceptance),
+the [STORY-031 snapshot record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#versioned-report-software-acceptance),
 the [STORY-032 PowerPoint record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-powerpoint-software-acceptance),
 the [STORY-033 email digest record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#selected-project-email-digest-software-acceptance),
 the [STORY-025 recommendation record](../05-quality/ATLAS_RELEASE_EVIDENCE.md#pm-queue-ordering-and-recommendation-framework-acceptance),
@@ -60,7 +61,7 @@ customer release criteria are tracked in the [vertical slice](RELEASE-1-VERTICAL
 | 1. Calculate delivery concern | Source-backed GOLDEN-002 and the GOLDEN-003 reconciliation. [PR #188](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/188) | STORY-015 software acceptance is recorded in the evidence ledger. |
 | 2. Connect reply to decision | A reviewer can ask for clarification through the secure invitation, review explicit status and forecast suggestions, and confirm both facts atomically before cadence reassessment. The Atlas owner can confirm access status for assigned-PM review. [PR #204](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/204) and [PR #208](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/208). | Add approved provider-backed interpretation and complete production engagement acceptance. [Issues #9](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/9) and [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10). |
 | 3. Connect decision to action | The Atlas demo requires reapproval after a fixture change, records one durable comment attempt and can recover its matching simulated receipt. [PR #203](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/203) and [PR #208](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/208). | Live action remains gated by OD-013 and OD-014. [Issues #7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7), [#10](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/10) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
-| 4. Show the outcome | The assigned PM sees the pending Atlas comment approval. Leadership can ask the GOLDEN-001 question, compare current evidence with a saved snapshot, and freeze the same facts for the management view, editable PowerPoint and email preview. Final approval and in-app distribution use the frozen snapshot. [PR #197](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/197), [PR #208](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/208) and [PR #210](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/210). | Complete general action-queue, answer and report acceptance. [Issues #11](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/11), [#12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12) and [#13](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13). |
+| 4. Show the outcome | The assigned PM sees the pending Atlas comment approval. Leadership can ask the GOLDEN-001 question, compare current evidence with a saved snapshot, and freeze the same facts for the management view, editable PowerPoint and email preview. Final approval and in-app distribution use the frozen snapshot. [PR #197](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/197), [PR #208](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/208) and [PR #210](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/210). | Complete the leadership claim and citation composer. [Issue #12](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/12). |
 | Customer release preparation | OIDC, secret storage, database profiles, recovery and distribution evidence collection | Resolve [OD-013 and OD-014](../00-governance/OPEN_DECISIONS.md), prove permitted live Jira behavior and resolve the inventory, licenses and notices, vulnerabilities, distributed layers and signing holds against the intended release images. [Issues #5](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/5), [#7](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/7) and [#14](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/14). |
 
 The packaged restore rehearsal now proves that the same current invitation works

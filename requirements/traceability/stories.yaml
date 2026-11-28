@@ -714,9 +714,19 @@ stories:
   - AC-RPT-003
   - AC-RPT-006
   - AC-PERF-001
-  status: planned
+  status: accepted
   release: R1
   github_issue: https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/issues/13
+  pull_requests:
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/238
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/243
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/245
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/247
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/272
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/273
+  - https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/275
+  implementation_evidence:
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: STORY-031
   epic: EPIC-09
   title: Implement report-run fact set
