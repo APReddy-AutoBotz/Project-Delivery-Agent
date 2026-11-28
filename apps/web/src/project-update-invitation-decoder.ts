@@ -70,7 +70,7 @@ function escalation(value: unknown, capturedAt: string, stageKind: unknown): boo
 }
 
 export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestView | null {
-  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext", "atlasInterpretation", "clarification"]) ||
+  if (!object(value) || !keys(value, ["requestId", "project", "stageKind", "dueAt", "capturedAt", "expiresAt", "body", "requiredFacts", "rawResponseReaders", "responses"], ["escalationContext", "atlasInterpretation", "clarification", "responseChoices"]) ||
       !uuid(value.requestId) || !object(value.project) || !keys(value.project, ["id", "code", "name"]) || !uuid(value.project.id) ||
       !label(value.project.code, 160) || !label(value.project.name, 160) || !stage(value.stageKind) ||
       !instant(value.dueAt) || !instant(value.capturedAt) || !instant(value.expiresAt) || typeof value.body !== "string" || !value.body.length || value.body.length > 65536 ||
@@ -80,6 +80,11 @@ export function decodeInvitation(value: unknown): ProjectUpdateRecipientRequestV
       !dense(value.rawResponseReaders, 0, 33) || !value.rawResponseReaders.every(subject) ||
       !dense(value.responses, 0, 20) || !value.responses.every(response) ||
       !escalation(value.escalationContext, value.capturedAt, value.stageKind)) return null;
+  const choices = value.responseChoices;
+  if (choices !== undefined && (!dense(choices, 1, 12) ||
+      !choices.every((choice) => typeof choice === "string" && choice.length > 0 && choice.length <= 200 &&
+        choice === choice.trim() && !/[\p{Cc}\p{Surrogate}\p{Zl}\p{Zp}]/u.test(choice)) ||
+      new Set(choices).size !== choices.length)) return null;
   const atlas = value.atlasInterpretation;
   const latest = value.responses[0];
   const clarification = value.clarification;

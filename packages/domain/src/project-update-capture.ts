@@ -14,6 +14,9 @@ import {
 export const projectUpdateInvitationLocatorSchema = z.uuid();
 const instant = z.iso.datetime({ offset: false });
 const revision = z.number().int().min(1).max(2147483647);
+const responseChoices = z.array(z.string().min(1).max(200).refine((value) =>
+  value === value.trim() && !/[\p{Cc}\p{Surrogate}\p{Zl}\p{Zp}]/u.test(value)))
+  .min(1).max(12).refine((values) => new Set(values).size === values.length);
 export const projectUpdateCaptureConfigurationSchema = z.strictObject({
   customerId: z.uuid(),
   mode: z.literal("CAPTURE"),
@@ -21,6 +24,7 @@ export const projectUpdateCaptureConfigurationSchema = z.strictObject({
   contentRetentionSeconds: z.number().int().min(86400).max(31536000),
   issuanceEpoch: z.uuid(),
   responseReviewerSubjects: z.array(canonicalSubjectSchema).max(32),
+  responseChoices: responseChoices.optional(),
 }).superRefine((value, context) => {
   if (value.contentRetentionSeconds < value.invitationLifetimeSeconds)
     context.addIssue({ code: "custom", path: ["contentRetentionSeconds"],
@@ -43,6 +47,7 @@ export const projectUpdateResponseSubmissionSchema = z.strictObject({
   text: responseText,
   idempotencyKey: z.string().min(1).max(96).regex(/^[A-Za-z0-9._-]+$/),
   correctsResponseId: z.uuid().nullable().default(null),
+  responseType: z.literal("CONFIGURED_CHOICE").optional(),
 });
 export type ProjectUpdateResponseSubmission = z.infer<
   typeof projectUpdateResponseSubmissionSchema
@@ -293,6 +298,7 @@ export const projectUpdateRecipientRequestViewSchema = z.strictObject({
   body: z.string().min(1).max(65536),
   requiredFacts: z.array(projectUpdateRequiredFactSchema).min(1).max(100),
   rawResponseReaders: z.array(canonicalSubjectSchema).max(33),
+  responseChoices: responseChoices.optional(),
   responses: z.array(projectUpdateResponseHistorySchema).max(20),
   clarification: z.strictObject({
     responseId: z.uuid(),

@@ -29,8 +29,10 @@ it("SEC-UPD-003: authenticates real invitation GET/POST and withholds unauthoriz
       expect((await tx.$queryRawUnsafe<{ current_user: string }[]>("SELECT current_user"))[0]!.current_user).toBe("pdaa_api");
       return operation(tx);
     }, options as never) };
+  const choice = "Status: Integration verification is in progress.";
+  const configuration: typeof f.configuration & { responseChoices?: string[] } = { ...f.configuration, responseChoices: [choice] };
   const updates = new DatabaseProjectUpdateRepository(roleDb as never, f.service, f.zones,
-    () => ({ globalShadowMode: "false", configuration: f.configuration }));
+    () => ({ globalShadowMode: "false", configuration }));
   const otherCustomer = randomUUID();
   await db.customer.create({ data: { id: otherCustomer, name: "Synthetic other customer" } });
   const otherEpoch = randomUUID();
@@ -65,7 +67,7 @@ it("SEC-UPD-003: authenticates real invitation GET/POST and withholds unauthoriz
     db.$queryRawUnsafe(`SELECT to_jsonb(t)::text AS row FROM public."AuditEvent" t WHERE "customerId"=$1::uuid ORDER BY to_jsonb(t)::text COLLATE "C"`, f.customerId)]);
   try {
     const positive = await call(app, locator, owner, false); expect(positive.status).toBe(200);
-    expect(JSON.parse(positive.body).requestId).toBe(f.request.requestId);
+    expect(JSON.parse(positive.body)).toMatchObject({ requestId: f.request.requestId, responseChoices: [choice] });
     const beforePositive = await snapshot();
     const beforeSubmit = await db.projectUpdateResponse.count({ where: { customerId: f.customerId, projectId: f.projectId } });
     const beforeContent = await db.projectUpdateResponseContent.count({ where: { customerId: f.customerId, projectId: f.projectId } });
@@ -80,9 +82,26 @@ it("SEC-UPD-003: authenticates real invitation GET/POST and withholds unauthoriz
     expect(await call(app, locator, owner, true)).toEqual(saved);
     expect(await snapshot()).toEqual(afterPositive);
 
-    const baseline = await snapshot(), invalidBody = { text: canary, idempotencyKey: randomUUID(), extra: "invalid" };
+    const correction = { text: choice, idempotencyKey: randomUUID(), responseType: "CONFIGURED_CHOICE",
+      correctsResponseId: receipt.responseId };
+    expect((await call(app, locator, owner, true, { ...correction, text: canary })).status).toBe(400);
+    expect(await snapshot()).toEqual(afterPositive);
+    const corrected = await call(app, locator, owner, true, correction);
+    expect(corrected.status).toBe(201);
+    expect(JSON.parse(corrected.body).state).toBe("UNCONFIRMED");
+    const history = await call(app, locator, owner, false);
+    expect(JSON.parse(history.body).responses).toContainEqual(expect.objectContaining({
+      id: JSON.parse(corrected.body).responseId, text: choice, correctsResponseId: receipt.responseId, state: "UNCONFIRMED",
+    }));
+    const baseline = await snapshot();
+    for (const index of [0, 1, 2, 5, 6, 7, 8]) expect(baseline[index]).toEqual(beforePositive[index]);
+    expect((await call(app, locator, owner, true, { ...correction, responseType: undefined })).status).toBe(409);
+    configuration.responseChoices = undefined;
+    expect(await call(app, locator, owner, true, correction)).toEqual(corrected);
+    expect((await call(app, locator, owner, true, { ...correction, idempotencyKey: randomUUID() })).status).toBe(400);
+    const invalidBody = { text: canary, idempotencyKey: randomUUID(), extra: "invalid" };
     expect((await call(app, locator, owner, true, invalidBody)).status).toBe(400);
-    const hidden = [canary, f.projectId, f.sourceMarkerA, f.sourceMarkerB, f.privateResponse, locator,
+    const hidden = [canary, choice, f.projectId, f.sourceMarkerA, f.sourceMarkerB, f.privateResponse, locator,
       f.request.requestId, f.request.body, JSON.parse(positive.body).project.name, JSON.parse(positive.body).project.code, receipt.responseId];
     let generic404: string | undefined;
     const checkDenied = (denied: { status: number; body: string }, status: number) => {
@@ -106,7 +125,7 @@ it("SEC-UPD-003: authenticates real invitation GET/POST and withholds unauthoriz
       state: "REVOKED", readers: [] }, { correlationId: randomUUID() });
     const afterRevocation = await snapshot();
     checkDenied(await call(app, locator, owner, false), 404);
-    checkDenied(await call(app, locator, owner, true), 404); // same-key replay must reauthorize
+    checkDenied(await call(app, locator, owner, true, correction), 404); // same-key replay must reauthorize
     expect(await snapshot()).toEqual(afterRevocation);
     const revoked = await facts.getSourceAccess(f.admin, { projectId: f.projectId, sourceId: f.sourceA.sourceId });
     await facts.setSourceAccess(f.admin, { projectId: f.projectId, sourceId: f.sourceA.sourceId, expectedRevision: revoked!.revision,

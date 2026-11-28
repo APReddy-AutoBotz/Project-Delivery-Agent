@@ -82,7 +82,8 @@ Add `-f deploy/customer/update-capture.yaml` to the composition, and set
   "invitationLifetimeSeconds": 3600,
   "contentRetentionSeconds": 86400,
   "issuanceEpoch": "20000000-0000-4000-8000-000000000001",
-  "responseReviewerSubjects": ["configured-pmo-subject"]
+  "responseReviewerSubjects": ["configured-pmo-subject"],
+  "responseChoices": ["Status: On track.", "Status: Blocked. More detail is needed."]
 }
 ```
 
@@ -95,6 +96,14 @@ expected revision/epoch and a nonquarantined owned database. Recreate the API wi
 the reviewed file and explicit `SHADOW_MODE=false`; configuration reload
 alone cannot enable issuance. PMO approval of a new capture generation remains a
 separate application action.
+
+Optionally set `responseChoices` to one to 12 distinct single-line replies
+of 200 characters or fewer. Current authorized owners can select one or
+write their own response, including when correcting an earlier reply. A
+selection records the configured wording as unconfirmed and uses the same
+access, retention and review rules as free text. Update the mounted configuration
+consistently across the API replicas when changing choices. Existing recorded
+replies retain their wording.
 
 For emergency disable, read status, set the expected revision/epoch and run
 `disable-update-issuance`. This atomically disables issuance, rotates the epoch
