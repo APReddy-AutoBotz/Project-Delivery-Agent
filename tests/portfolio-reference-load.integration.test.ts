@@ -15,7 +15,7 @@ import {
 } from "../packages/data/dist/index.js";
 import { portfolioUpdatePageSize } from "../packages/domain/src/project-updates.js";
 import type { Actor, ProjectReportSchedule } from "../packages/domain/src/index.js";
-import { assertSyntheticDatabaseUrl, CredentialKeyRingVault, loadConfig } from "../packages/platform/dist/index.js";
+import { assertSyntheticDatabaseUrl, CredentialKeyRingVault, loadConfig, signConnectorTaskRequest } from "../packages/platform/dist/index.js";
 import { canonicalFixture } from "../scripts/acceptance/canonical-projects.mjs";
 
 const projectCount = 200;
@@ -159,15 +159,30 @@ it("loads core portfolio data while the separate scheduled report worker renders
 
     const { detail } = await db.auditEvent.findFirstOrThrow({ where: reportScope, orderBy: { occurredAt: "asc" },
       select: { detail: true } });
-    const receipt = detail as { projectId: string; snapshotId: string; sha256: string; byteLength: number };
+    const { actorKind: _actorKind, ...receipt } = detail as {
+      projectId: string; reportingPeriod: string; snapshotId: string; sha256: string; byteLength: number; actorKind: string;
+    };
     expect(receipt.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(receipt.byteLength).toBeGreaterThan(0);
+    const frozen = await db.auditEvent.findUniqueOrThrow({ where: { id: receipt.snapshotId }, select: { detail: true } });
     const reportUrl = `${origin}/api/projects/${receipt.projectId}/management-draft?snapshotId=scheduled`;
     expect((await fetch(reportUrl, { headers: headers[0] })).status).toBe(404);
     const preview = await fetch(reportUrl, { headers: await auth(reviewer) });
     expect(preview.status).toBe(200);
-    expect(await preview.json()).toMatchObject({ snapshotId: receipt.snapshotId,
-      draft: { projectId: receipt.projectId, approvalState: "DRAFT" }, powerpointBase64: expect.stringMatching(/^UEsDB/) });
+    const output = await preview.json();
+    expect(output.snapshotId).toBeUndefined();
+    expect(output.draft).toEqual((frozen.detail as { draft: unknown }).draft);
+    expect(output.powerpointBase64).toMatch(/^UEsDB/);
+    const completePath = "/internal/project-reports/complete";
+    for (const [sha256, status] of [[receipt.sha256, 200], ["0".repeat(64), 409]] as const) {
+      const body = Buffer.from(JSON.stringify({ ...receipt, sha256 }));
+      const headers = signConnectorTaskRequest({ method: "POST", path: completePath, body, keyRing: reportTaskKeys });
+      const response = await fetch(origin + completePath, { method: "POST", body,
+        headers: { ...headers, "content-type": "application/json" } });
+      expect(response.status).toBe(status);
+      await response.body?.cancel();
+    }
+    expect(await db.auditEvent.count({ where: { ...reportScope, detail: { path: ["snapshotId"], equals: receipt.snapshotId } } })).toBe(1);
   } finally {
     try {
       if (worker && workerExit && worker.exitCode === null) {

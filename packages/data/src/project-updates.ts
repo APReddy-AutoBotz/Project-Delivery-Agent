@@ -3182,7 +3182,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       if (this.scheduledReportPeriod(schedule, completedAt) !== result.reportingPeriod) throw new ProjectUpdateError("DENIED");
       const snapshot = await this.readableScheduledReportDraft(tx, actor, result);
       if (snapshot?.snapshotId !== result.snapshotId) throw new ProjectUpdateError("DENIED");
-      if (await this.findScheduledProjectReport(tx, actor.customerId, actor.subject, result, scheduledReportRenderedEvent)) return;
+      const prior = await this.findScheduledProjectReport(tx, actor.customerId, actor.subject, result, scheduledReportRenderedEvent);
+      if (prior) {
+        const receipt = storedScheduledReportReceipt.parse(prior.detail);
+        if (receipt.snapshotId !== result.snapshotId || receipt.sha256 !== result.sha256 || receipt.byteLength !== result.byteLength)
+          throw new ProjectUpdateError("CONFLICT");
+        return;
+      }
       await this.recordProjectAuditEvent(tx, actor, scheduledReportRenderedEvent, correlationId,
         { ...result, actorKind: "service" }, completedAt);
     }, "ReadCommitted");

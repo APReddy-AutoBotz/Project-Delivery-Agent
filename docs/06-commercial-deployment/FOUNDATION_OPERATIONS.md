@@ -118,7 +118,31 @@ leadership access to the configured projects and the required evidence. The
 worker prepares monthly drafts and records the frozen fact set, PowerPoint
 checksum and size under the service actor. An authorized leadership user can
 preview the latest completed draft with `GET /api/projects/{id}/management-draft?snapshotId=scheduled`.
-The normal saved-report workflow handles human approval and distribution.
+The API renders that preview from the frozen facts. The checksum records the
+worker's render. To request approval and distribution, generate and save a
+live report from the project.
+
+Graphile attempts each project render up to three times. After resolving an
+exhausted job's access or service error, a worker-schema operator can reset that
+job for the current reporting month. Replace the key with the exact project ID
+and reporting month. The query targets only that exhausted, unlocked render.
+
+```sql
+SELECT id FROM graphile_worker.reschedule_jobs(
+  ARRAY(
+    SELECT id FROM graphile_worker.jobs
+    WHERE task_identifier = 'render_scheduled_project_report'
+      AND key = 'project-report:<project-uuid>:<yyyy-mm>'
+      AND attempts = max_attempts
+      AND locked_at IS NULL
+  ),
+  run_at => clock_timestamp(),
+  attempts => 0
+);
+```
+
+The worker resumes the saved fact set and checks the current project and source
+access. Completion records one receipt for that report run.
 
 Restore disables issuance and rotates its epoch before runtime connections can
 resume. Enabling issuance does not promote a quarantined restore target; follow

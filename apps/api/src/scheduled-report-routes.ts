@@ -76,6 +76,8 @@ export function installScheduledReportRoutes(app: NestExpressApplication, config
       if (error instanceof z.ZodError) res.status(400).json({ statusCode: 400, message: "Invalid request" });
       else if (error instanceof ProjectUpdateError && error.code === "DENIED")
         res.status(404).json({ statusCode: 404, message: "Resource unavailable" });
+      else if (error instanceof ProjectUpdateError && error.code === "CONFLICT")
+        res.status(409).json({ statusCode: 409, message: "Report render receipt conflicts" });
       else res.status(503).json({ statusCode: 503, message: "Service unavailable" });
     }
   });

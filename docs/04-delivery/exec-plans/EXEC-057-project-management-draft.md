@@ -40,7 +40,7 @@ and record it as the service actor.
 
 Prepare a stable report run for each selected project and reporting period.
 Render the frozen draft in the worker and complete the same run after a
-retry. The draft remains available only through authorized review and uses
-the existing human approval and distribution controls. The report job and
-connector synchronization must run during the measured dashboard read
-workload to demonstrate the performance criterion.
+retry. Authorized leadership can preview the frozen draft. To request approval
+and distribution, leadership can generate and save a live report from the
+project. The report job and connector synchronization must run during the
+measured dashboard read workload to demonstrate the performance criterion.
