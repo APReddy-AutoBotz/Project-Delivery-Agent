@@ -10,6 +10,7 @@ import {
 } from "node:fs";
 import { resolve, join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
 export const toolPins = JSON.parse(
@@ -17,6 +18,18 @@ export const toolPins = JSON.parse(
 );
 export const sha256 = (bytes) =>
   createHash("sha256").update(bytes).digest("hex");
+
+async function fetchPublisherArchive(url) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await fetch(url, { signal: AbortSignal.timeout(180000) });
+    } catch (error) {
+      if (attempt === 3 || error?.cause?.code !== "UND_ERR_CONNECT_TIMEOUT") throw error;
+      await delay(attempt * 500);
+    }
+  }
+}
+
 export async function installTools(root) {
   assert(
     process.arch === "x64" && ["win32", "linux"].includes(process.platform),
@@ -39,9 +52,7 @@ export async function installTools(root) {
       process.platform === "win32" ? "windows_amd64.zip" : "linux_amd64.tar.gz";
     const url = `${pin.repository}/releases/download/v${pin.version}/${tool}_${pin.version}_${platform}`;
     if (!existsSync(archive)) {
-      const response = await fetch(url, {
-        signal: AbortSignal.timeout(180000),
-      });
+      const response = await fetchPublisherArchive(url);
       assert(response.ok, `${tool} publisher download failed`);
       const bytes = Buffer.from(await response.arrayBuffer());
       assert.equal(
