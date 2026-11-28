@@ -176,9 +176,10 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {schedule && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
         </li>}
-        {freshness && <li id={freshnessRef} tabIndex={-1}>Assessed at {freshness.assessedAt}.{" "}
+        {freshness && <li id={freshnessRef} tabIndex={-1}>Update assessment {freshness.assessmentId}. Assessed at {freshness.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
           at {freshness.sourceDate}.
+          {freshness.obligationId && ` Open update obligation ${freshness.obligationId}.`}
           {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
         {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
         {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.

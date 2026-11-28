@@ -2864,10 +2864,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   private async atlasUpdateFreshness(tx: Tx, current: Actor, projectId: string) {
     const observed = await this.currentProjectFreshness(tx, current, projectId);
     if (!observed) return null;
-    const { freshness, obligationId } = observed;
-    const activeClarification = freshness.state === "STALE" && freshness.openObligation && obligationId
+    const { assessmentId, freshness } = observed;
+    const obligationId = freshness.openObligation ? observed.obligationId ?? undefined : undefined;
+    const activeClarification = freshness.state === "STALE" && obligationId
       ? await this.atlasActiveClarification(tx, current, projectId, obligationId) : undefined;
-    return { ...freshness, activeClarification };
+    return { ...freshness, assessmentId, obligationId, activeClarification };
   }
 
   private async currentProjectLeadershipFacts(tx: Tx, current: Actor, projectId: string) {

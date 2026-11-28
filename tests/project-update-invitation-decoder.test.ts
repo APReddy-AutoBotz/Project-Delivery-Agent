@@ -24,6 +24,24 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
     schedule: { ...priorSnapshot.schedule, movementDays: 12 } } }, id)).toBeNull();
 });
 
+it("requires the saved Atlas assessment and cites an obligation only while open", () => {
+  const answer = { projectId: id, asOf: later, schedule: null, ownerReply: null, receipt: null,
+    delayAssessment: null, integrationStart: null, jiraBlocker: null, pmEscalation: null };
+  const freshness = { assessmentId: other, state: "STALE", assessedAt: later, sourceDate: at,
+    sourceDateField: "project.latestValidUpdateAt", openObligation: true, obligationId: id };
+  for (const updateFreshness of [null, freshness, { ...freshness, openObligation: false, obligationId: undefined }]) {
+    const value = { ...answer, updateFreshness };
+    expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(true);
+    expect(decodeAtlasLeadershipAnswer(value, id)).toEqual(value);
+  }
+  for (const updateFreshness of [{ ...freshness, assessmentId: undefined }, { ...freshness, obligationId: undefined },
+    { ...freshness, obligationId: "unverified" }, { ...freshness, openObligation: false }]) {
+    const value = { ...answer, updateFreshness };
+    expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(false);
+    expect(decodeAtlasLeadershipAnswer(value, id)).toBeNull();
+  }
+});
+
 it("requires exact Atlas schedule and PM statements while their supporting receipts are available", () => {
   const availableUntil = "2026-01-03T00:00:00.000Z";
   const facts = { projectId: id, asOf: later,

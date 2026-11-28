@@ -319,13 +319,15 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
       typeof delayClarificationState !== "string" || !["AVAILABLE", "REQUESTED", "RESOLVED"].includes(delayClarificationState))) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
-      !keys(updateFreshness, ["state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"], ["activeClarification"]) ||
+      !keys(updateFreshness, ["assessmentId", "state", "assessedAt", "sourceDate", "sourceDateField", "openObligation"],
+        ["obligationId", "activeClarification"]) || !uuid(updateFreshness.assessmentId) ||
       (updateFreshness.state !== "CURRENT" && updateFreshness.state !== "STALE") ||
       (updateFreshness.sourceDateField !== "project.createdAt" && updateFreshness.sourceDateField !== "project.latestValidUpdateAt") ||
       !instant(updateFreshness.assessedAt) || !instant(updateFreshness.sourceDate) ||
       Date.parse(updateFreshness.sourceDate) > Date.parse(updateFreshness.assessedAt) ||
       Date.parse(updateFreshness.assessedAt) > Date.parse(answer.asOf) ||
-      typeof updateFreshness.openObligation !== "boolean")) return null;
+      typeof updateFreshness.openObligation !== "boolean" ||
+      (updateFreshness.openObligation ? !uuid(updateFreshness.obligationId) : updateFreshness.obligationId !== undefined))) return null;
   const clarification = object(updateFreshness) ? updateFreshness.activeClarification : undefined;
   if (clarification !== undefined && (!object(updateFreshness) || updateFreshness.state !== "STALE" || !updateFreshness.openObligation ||
       !object(clarification) || !keys(clarification, ["clarificationId", "factType", "requestedAt", "availableUntil"]) ||

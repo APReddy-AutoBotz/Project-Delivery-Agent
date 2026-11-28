@@ -69,3 +69,14 @@ Apply this to the live answer. Saved reports retain their own fact sets.
 Verify the exact wording and receipt bindings in the existing Atlas journey
 and the browser decoder. STORY-028 and AC-QA-002 also cover the other answer
 statements and model output validation.
+
+## Atlas update evidence
+
+Cite the saved update assessment and the current open obligation in the live
+Atlas answer. Use the existing, source-authorized assessment read and withhold
+both references when its source access is withdrawn. Check the assessment
+against the management draft and the obligation against the PM's update
+assessment in the existing Atlas browser journey. Check that the browser and API
+reject a missing assessment reference or an inconsistent obligation reference.
+The references belong to the live answer contract and use existing records.
+Revert the API and web changes together to restore the earlier answer contract.
