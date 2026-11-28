@@ -95,12 +95,13 @@ it("SEC-UPD-003: authenticates real invitation GET/POST and withholds unauthoriz
     }));
     const baseline = await snapshot();
     for (const index of [0, 1, 2, 5, 6, 7, 8]) expect(baseline[index]).toEqual(beforePositive[index]);
+    expect((await call(app, locator, owner, true, { ...correction, responseType: undefined })).status).toBe(409);
     configuration.responseChoices = undefined;
     expect(await call(app, locator, owner, true, correction)).toEqual(corrected);
     expect((await call(app, locator, owner, true, { ...correction, idempotencyKey: randomUUID() })).status).toBe(400);
     const invalidBody = { text: canary, idempotencyKey: randomUUID(), extra: "invalid" };
     expect((await call(app, locator, owner, true, invalidBody)).status).toBe(400);
-    const hidden = [canary, f.projectId, f.sourceMarkerA, f.sourceMarkerB, f.privateResponse, locator,
+    const hidden = [canary, choice, f.projectId, f.sourceMarkerA, f.sourceMarkerB, f.privateResponse, locator,
       f.request.requestId, f.request.body, JSON.parse(positive.body).project.name, JSON.parse(positive.body).project.code, receipt.responseId];
     let generic404: string | undefined;
     const checkDenied = (denied: { status: number; body: string }, status: number) => {

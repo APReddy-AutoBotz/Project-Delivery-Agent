@@ -8,6 +8,8 @@ const correctedResponseId = "30000000-0000-4000-8000-000000000002";
 async function fixture(page: Page, { expireSoon = false, history = false, responseChoices }:
   { expireSoon?: boolean; history?: boolean; responseChoices?: string[] } = {}) {
   const submissions: ProjectUpdateResponseSubmission[] = [];
+  const saved = new Map<string, ProjectUpdateResponseSubmission>();
+  let choices = responseChoices;
   let failNext = false;
   let pendingReply: Promise<void> | undefined;
   let releaseReply: (() => void) | undefined;
@@ -46,17 +48,21 @@ async function fixture(page: Page, { expireSoon = false, history = false, respon
               bodyProjection: "REVIEWER_NAMES_WITHHELD", body: "Retained historical reminder." },
           ] } } : {}),
         requiredFacts: [{ factType: "project.status", label: "Project status" }], rawResponseReaders: ["recipient", "reviewer"],
-        responseChoices,
+        responseChoices: choices,
         ...(clarificationPending ? { clarification: { responseId, question: projectUpdateClarificationQuestion } } : {}),
-        responses: [...new Map(submissions.map((entry) => [entry.idempotencyKey, entry])).values()].reverse().map((entry) => ({
+        responses: [...saved.values()].reverse().map((entry) => ({
           id: entry.correctsResponseId ? correctedResponseId : responseId, submittedBy: "recipient", receivedAt: new Date().toISOString(),
           correctsResponseId: entry.correctsResponseId, state: "UNCONFIRMED", contentState: "PRESENT", text: entry.text })) });
     }
     if (pathname.endsWith("/responses")) {
-      submissions.push(route.request().postDataJSON());
+      const submission = route.request().postDataJSON() as ProjectUpdateResponseSubmission;
+      submissions.push(submission);
       if (pendingReply) await pendingReply;
       expect(route.request().headers().authorization).toBe("Bearer synthetic-browser-token");
       if (failNext) { failNext = false; return response({ statusCode: 503, message: "Service unavailable" }, 503); }
+      if (!saved.has(submission.idempotencyKey) && submission.responseType === "CONFIGURED_CHOICE" && !choices?.includes(submission.text))
+        return response({ statusCode: 400, message: "Invalid request" }, 400);
+      saved.set(submission.idempotencyKey, submission);
       clarificationPending = false;
       return response({ responseId: submissions.at(-1)?.correctsResponseId ? correctedResponseId : responseId,
         requestId: locator, receivedAt: new Date().toISOString(), state: "UNCONFIRMED",
@@ -69,13 +75,15 @@ async function fixture(page: Page, { expireSoon = false, history = false, respon
   await expect(page.getByRole("region", { name: "Respond to update request" })).toBeVisible();
   return { submissions, body, fail: () => { failNext = true; }, reads: () => invitationReads, deny: () => { denied = true; },
     requestClarification: () => { clarificationPending = true; },
+    setChoices: (value: string[]) => { choices = value; },
     delay: () => { pendingReply = new Promise<void>((resolve) => { releaseReply = resolve; }); },
     release: () => releaseReply?.() };
 }
 
 test("GOLDEN-006: the owner sees the clarification on their invitation and can answer it", async ({ page }) => {
   const updated = "Casey owns the fix and expects it on 6 December 2026. Work remains blocked.";
-  const f = await fixture(page, { responseChoices: [updated] });
+  const withdrawn = "Status: Work has resumed.";
+  const f = await fixture(page, { responseChoices: [withdrawn, updated] });
   const input = page.getByRole("textbox", { name: "Your update (unconfirmed)" });
   const record = page.getByRole("button", { name: "Record response" });
   await input.fill("It should be fine next week once they sort it.");
@@ -85,9 +93,21 @@ test("GOLDEN-006: the owner sees the clarification on their invitation and can a
   await page.evaluate(() => window.dispatchEvent(new Event("visibilitychange")));
   const question = page.getByRole("region", { name: "Clarification requested" });
   await expect(question).toContainText(projectUpdateClarificationQuestion);
-  await page.getByRole("combobox", { name: "Response choice (optional)" }).selectOption(updated);
+  const choicesControl = page.getByRole("combobox", { name: "Response choice (optional)" });
+  const correction = page.getByRole("combobox", { name: "Correct an earlier response (optional)" });
+  await choicesControl.selectOption(withdrawn);
   await expect(input).toHaveCount(0);
-  await page.getByRole("combobox", { name: "Correct an earlier response (optional)" }).selectOption(responseId);
+  await correction.selectOption(responseId);
+  f.fail();
+  await record.click();
+  await expect(page.getByRole("alert")).toContainText("could not be confirmed");
+  f.setChoices([updated]);
+  await record.click();
+  await expect(page.getByRole("alert")).toContainText("could not be recorded");
+  expect(f.submissions[2]).toEqual(f.submissions[1]);
+  await expect(choicesControl.getByRole("option", { name: withdrawn })).toHaveCount(0);
+  await expect(correction).toHaveValue(responseId);
+  await choicesControl.selectOption(updated);
   await record.click();
   await expect(page.getByRole("listitem").filter({ hasText: "Correction to an earlier response" })).toContainText(updated);
   await expect(question).toHaveCount(0);

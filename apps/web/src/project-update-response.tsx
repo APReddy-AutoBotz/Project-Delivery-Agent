@@ -302,10 +302,24 @@ export function ProjectUpdateResponse({ locator, customerId, subject, ownerScope
       void queryClient.invalidateQueries({ queryKey: key, exact: true }).catch(() => {
         if (isCurrentScope() && active.current) setMessage("Response recorded; the request could not be refreshed.");
       });
-    } catch {
-      if (lease) invitationWrites.uncertain(writeOwner, lease);
+    } catch (error) {
+      // For a configured choice the API checks the saved command before
+      // rejecting it, so a 400 resolves this exact write without a receipt.
+      const choiceRejected = pending.configuredChoice && typeof error === "object" && error !== null &&
+        "status" in error && error.status === 400;
+      if (lease) {
+        if (choiceRejected) invitationWrites.confirm(writeOwner, lease);
+        else invitationWrites.uncertain(writeOwner, lease);
+      }
       if (!isCurrentScope() || !active.current || draftEpoch.current !== snapshotEpoch) return;
       setFailed(true);
+      if (choiceRejected) {
+        submission.current = null;
+        setChoice("");
+        setMessage("The selected response could not be recorded. Choose an available response or write your own.");
+        void queryClient.invalidateQueries({ queryKey: key, exact: true }).catch(() => {});
+        return;
+      }
       setMessage("Your response could not be confirmed. Retry the same response or check its history.");
     } finally { operation.current = false; if (active.current) setBusy(false); }
   }
