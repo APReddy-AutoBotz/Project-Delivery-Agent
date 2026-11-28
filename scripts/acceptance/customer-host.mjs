@@ -562,6 +562,7 @@ export async function customerProfiles({
   assert.deepEqual(bundled.images, external.images);
   for (const field of ["sourceSystem", "mappingPrefix", "forecastLabel", "freshnessSeconds", "escalationDays", "overdueDays"])
     assert.notEqual(bundled.configurationVariant[field], external.configurationVariant[field]);
+  assert.notDeepEqual(bundled.configurationVariant.cadence, external.configurationVariant.cadence);
   assert.notEqual(bundled.configurationVariant.report.approver, external.configurationVariant.report.approver);
   return results;
 }

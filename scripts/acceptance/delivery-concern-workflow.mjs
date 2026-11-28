@@ -225,6 +225,29 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
   expect(replay.status()).toBe(201);
   expect(await replay.json()).toEqual({ ...assessment, replayed: true });
 
+  let cadence;
+  if (configurationVariant) {
+    const assessed = await api(project + "/project-update-assessments", "POST", {});
+    expect(assessed.status()).toBe(201);
+    const updateAssessment = await assessed.json();
+    expect(updateAssessment.freshness).toMatchObject({ state: "STALE", freshnessWindowSeconds: freshnessSeconds });
+    expect(updateAssessment.obligation.state).toBe("OPEN");
+    const preview = await api(project + "/project-update-schedule-preview");
+    expect(preview.status()).toBe(200);
+    const schedule = await preview.json();
+    expect(schedule).toMatchObject({ timeZone: updatePolicy.timeZone, logicalDueAt: updateAssessment.obligation.dueAt,
+      policyRevision: confirmedUpdatePolicy.revision });
+    cadence = schedule.events.map(({ kind, offsetBusinessDays, recipientSubject }) =>
+      ({ kind, offsetBusinessDays, recipientSubject }));
+    expect(cadence).toEqual([
+      { kind: "REQUEST", offsetBusinessDays: 0, recipientSubject: updatePolicy.responsibleSubject },
+      ...(escalationDays ? [
+        { kind: "REMINDER", offsetBusinessDays: 1, recipientSubject: updatePolicy.responsibleSubject },
+        { kind: "ESCALATION", offsetBusinessDays: escalationDays, recipientSubject: escalationSubject },
+      ] : []),
+    ]);
+  }
+
   const sourcePath = project + "/fact-sources/" + update.sourceId + "/access";
   const access = await api(sourcePath);
   expect(access.status()).toBe(200);
@@ -250,7 +273,7 @@ export async function exerciseDeliveryConcernWorkflow({ api, portfolioId, openPr
     criticalTargetsPolicyRevision: policy.revision,
     ...(configurationVariant && { configuration: {
       sourceSystem: configurationVariant.sourceSystem, mappingPrefix: configurationVariant.mappingPrefix,
-      forecastLabel: confirmedUpdatePolicy.requiredFacts[0].label, freshnessSeconds, escalationDays, overdueDays,
+      forecastLabel: confirmedUpdatePolicy.requiredFacts[0].label, freshnessSeconds, escalationDays, overdueDays, cadence,
     } }),
   };
 }
