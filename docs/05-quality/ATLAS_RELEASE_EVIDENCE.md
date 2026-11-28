@@ -28,8 +28,9 @@ remaining acceptance criteria and customer release gates.
 | FR-ADV-002 blocker review | The assigned PM sees one ranked review for the project with current authorized aged blockers. Revoking the underlying source access removes the item after refresh. | [PR #222 main browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45927603066/job/140272532555) |
 
 The build uses PptxGenJS on a Linux runner and checks editable text and
-report metadata in the generated deck. General reporting acceptance remains
-open under Issue #13.
+report metadata in the generated deck. The [project and portfolio views
+acceptance](#project-and-portfolio-views-acceptance) records the reference
+dashboard workload.
 
 ## Secure invitation and reply proposal acceptance
 
@@ -57,8 +58,8 @@ and verified merge.
 
 The normal project evidence is from the verified PR #238 merge `b2b0e59f`.
 The snapshot uses existing append-only audit storage. Recovery retains those
-records if the application route is reverted. Portfolio dashboards, report
-content and customer release gates remain open under their existing decisions.
+records if the application route is reverted. The [project and portfolio views
+acceptance](#project-and-portfolio-views-acceptance) records the dashboard evidence.
 [Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558) ·
 [Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298547)
 
@@ -67,7 +68,7 @@ content and customer release gates remain open under their existing decisions.
 STORY-032 covers editable selected-project PowerPoint reports and the related
 metadata and accessibility criteria. This acceptance takes effect after the
 record passes independent review and required hosted checks and merges.
-Portfolio dashboards and customer release approval remain open.
+Customer release approval follows the [release plan](../04-delivery/RELEASE-1-VERTICAL-SLICE.md).
 
 | Criterion | Executed evidence |
 | --- | --- |
@@ -140,6 +141,30 @@ project. The restricted portfolio project is absent, and a PM session cannot
 read the overview. The accompanying integration checks cover revocation of
 source access after project discovery.
 [Main native and browser checks](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46036700398/job/140633798336).
+
+## Project and portfolio views acceptance
+
+STORY-030 combines the [assigned PM queue access](#assigned-pm-queue-access-acceptance),
+[ranked PM queue](#pm-queue-ordering-and-recommendation-framework-acceptance),
+[PMO portfolio freshness](#pmo-portfolio-freshness-acceptance) and
+[shared report facts](#versioned-report-software-acceptance) evidence with
+the reference workload rehearsal for AC-PERF-001.
+
+In the post-merge Linux run at `8e63e12531c72234aac4988f2475c2e5cc77430b`, 200 authorized users fetched the
+project list and PMO portfolio freshness from the interactive API in groups
+of 20, against 200 projects and 20,000 work items. The slowest paired read,
+including JSON decoding, took **1,086 ms** against the three-second target.
+An independent Graphile Worker and private task API ran the scheduled Jira
+synchronization and PowerPoint rendering. The fixture observed receipts for
+both during the timed reads. It verified synchronized records for all 200
+projects across two synthetic Jira sites and confirmed that every project
+had either a completed render or a scheduled render job.
+[Main database and browser job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46102244110/job/140847074528) ·
+[Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46102244110) ·
+[Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46102244109)
+
+The rehearsal used synthetic sources and no external delivery. The story
+acceptance takes effect after review and merge of this record.
 
 ## PM queue ordering and recommendation framework acceptance
 
@@ -227,6 +252,18 @@ This covers the configuration proof in AC-MNT-001. Scheduled escalation,
 additional report formats and observed pilot results require their own evidence.
 [Implementation PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/264) ·
 [Main packaged evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46083388097/artifacts/15238477925).
+
+The installed API also applied each profile's cadence to a stale open
+obligation. The bundled profile produced the owner request. The external
+database profile produced the owner request, a reminder after one business
+day and an escalation after three business days to the configured PM.
+The same rehearsal retained the distinct source mappings, terminology,
+health thresholds and report approvers, and rejected the invalid time zone.
+Both profiles used identical image builds. This completes E2E-MNT-001 for
+AC-MNT-001 using the schedule preview and report routing.
+[Implementation PR](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/pull/278) ·
+[Main packaged evidence](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46102721413/artifacts/15247480336) ·
+[Main production job](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/46102721413/job/140848590492).
 
 ## Reply clarification and confirmation acceptance
 

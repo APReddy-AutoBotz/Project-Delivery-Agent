@@ -392,14 +392,17 @@ tests:
   - .github/workflows/foundation-validation.yml
 - id: E2E-MNT-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-MNT-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: Two synthetic customer configurations with different mappings, terminology, cadence/escalation, health
     thresholds and report configuration run on the identical build with no customer branch or code edits; invalid
     configuration is rejected.
-  evidence: []
+  evidence:
+  - scripts/acceptance/delivery-concern-workflow.mjs
+  - scripts/acceptance/customer-host.mjs
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: E2E-QA-001
   release: R1
   status: implemented
@@ -1319,14 +1322,16 @@ tests:
   evidence: []
 - id: PERF-001
   release: R1
-  status: planned
+  status: implemented
   acceptance_criteria:
   - AC-PERF-001
   specification: docs/04-delivery/ACCEPTANCE_CRITERIA.md
   behavior: During scheduled synchronization and report generation at the documented reference load, interactive
     requests remain responsive; measure core dashboard response against the three-second target while jobs run outside
     the request process.
-  evidence: []
+  evidence:
+  - tests/portfolio-reference-load.integration.test.ts
+  - docs/05-quality/ATLAS_RELEASE_EVIDENCE.md
 - id: PILOT-001
   release: R1
   status: planned
