@@ -85,3 +85,15 @@ The normal selected-project answer also cites the exact ID of the open
 update obligation in its existing assessment evidence. It uses the same
 source-authorized read as Atlas. Saved reports and comparison responses
 retain their existing evidence shape.
+
+## Selected-project schedule and assessment claims
+
+The live answer builds and validates exact wording for the schedule movement
+and saved update assessment. The sealed schedule cites its creation receipt
+and revision. The update assessment cites the saved assessment, its policy
+revision and the open obligation when present. A stale assessment keeps its
+stale label. The browser validates the claim text, scope, as-of time and
+citations against the authorized response before rendering. The existing
+native and browser cases verify the persisted references and the decoder
+rejects unsupported wording. This extends STORY-028 and AC-QA-002.
+Apply or revert the API and browser together.

@@ -509,7 +509,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     const priorSnapshotId = (body as { priorSnapshotId?: string }).priorSnapshotId;
     if (priorSnapshotId) return { ...projectAnswerFixture, state: "COMPARISON" as const,
       priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
-    return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const };
+    return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const, scheduleClaim: null, updateClaim: null };
   }),
   projectDelayClarification: vi.fn(async () => ({ ...projectDelayFixture, causeEvidence: null, confirmation: null })),
   requestProjectDelayClarification: vi.fn(async () => projectDelayFixture),

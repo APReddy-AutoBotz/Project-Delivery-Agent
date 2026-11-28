@@ -101,14 +101,19 @@ it("returns the exact real request/reminder cycle including equal-clock lower UU
   expect(JSON.stringify(view)).not.toContain(f.privateResponse);
   expect(view.responses.map((entry) => entry.text)).toEqual(["PM own unconfirmed reply"]);
   const scope = { customerId: f.customerId, projectId: f.projectId };
-  const [savedAssessment, obligation] = await Promise.all([
+  const [savedAssessment, obligation, creation] = await Promise.all([
     db.projectUpdateAssessment.findFirstOrThrow({ where: scope, orderBy: [{ assessedAt: "desc" }, { id: "desc" }] }),
     db.projectUpdateObligation.findFirstOrThrow({ where: { ...scope, state: "OPEN" } }),
+    db.canonicalCreationReceipt.findFirstOrThrow({ where: { ...scope, operation: "PROJECT" } }),
   ]);
   const answer = await repository().projectLeadershipAnswer(f.pm, f.projectId, { question: "Why is this project delayed?" });
-  expect(answer).toMatchObject({ state: "ANSWERED", updateFreshness: {
-    assessmentId: savedAssessment.id, openObligation: true, obligationId: obligation.id,
-  } });
+  expect(answer).toMatchObject({ state: "ANSWERED",
+    scheduleClaim: { claimText: "The forecast is 15 days later than the baseline.", scheduleRevision: 1,
+      evidenceIds: [creation.id], projectId: f.projectId },
+    updateFreshness: { assessmentId: savedAssessment.id, openObligation: true, obligationId: obligation.id },
+    updateClaim: { evidenceIds: [savedAssessment.id, obligation.id], policyRevisionId: savedAssessment.policyRevisionId,
+      assessedAt: savedAssessment.assessedAt.toISOString(), projectId: f.projectId },
+  });
 });
 
 it("selects the latest real same-engagement anchor and excludes the older captured generation", async () => {

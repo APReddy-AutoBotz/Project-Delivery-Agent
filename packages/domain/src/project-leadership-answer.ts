@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AuthorityAssessment } from "./authority-persistence.js";
+import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
 
 const settledProvenance = z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED"]);
@@ -83,20 +84,75 @@ export const projectLeadershipFactsSchema = z.strictObject({
 });
 export type ProjectLeadershipFacts = z.infer<typeof projectLeadershipFactsSchema>;
 
+const readClaim = z.strictObject({
+  projectId: z.uuid(), asOf: z.iso.datetime(), claimText,
+  provenance: z.literal("SYSTEM_VERIFIED"), conflict: z.literal("NONE"),
+});
+const scheduleClaimSchema = readClaim.extend({
+  scheduleRevision: projectLeadershipScheduleSchema.shape.revision,
+  evidenceIds: z.tuple([z.uuid()]), freshness: z.literal("CURRENT"), classification: z.literal("SYSTEM_VERIFIED"),
+});
+const updateClaimSchema = readClaim.extend({
+  policyRevisionId: z.uuid(), assessedAt: z.iso.datetime(),
+  evidenceIds: z.array(z.uuid()).min(1).max(2),
+  freshness: z.enum(["CURRENT", "STALE"]), classification: z.enum(["SYSTEM_VERIFIED", "STALE"]),
+});
+const liveUpdateFreshness = projectLeadershipFactsSchema.shape.updateFreshness.unwrap().extend({
+  obligationId: z.uuid().optional(),
+});
+type LiveUpdateFreshness = z.infer<typeof liveUpdateFreshness>;
+
+function scheduleMovementText(days: number | null) {
+  return days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
+    : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
+}
+
+export function composeProjectLeadershipClaims(
+  facts: Pick<ProjectLeadershipFacts, "projectId" | "asOf" | "schedule"> & { updateFreshness: LiveUpdateFreshness | null },
+  scheduleReceiptId: string | undefined, updatePolicyRevisionId: string | undefined,
+) {
+  const { projectId, asOf, schedule, updateFreshness } = facts;
+  const origin = { projectId, asOf, provenance: "SYSTEM_VERIFIED", conflict: "NONE" } as const;
+  return {
+    scheduleClaim: schedule && scheduleReceiptId ? scheduleClaimSchema.parse({
+      ...origin, scheduleRevision: schedule.revision, evidenceIds: [scheduleReceiptId],
+      claimText: scheduleMovementText(schedule.movementDays), freshness: "CURRENT", classification: "SYSTEM_VERIFIED",
+    }) : null,
+    updateClaim: updateFreshness && updatePolicyRevisionId ? updateClaimSchema.parse({
+      ...origin, policyRevisionId: updatePolicyRevisionId, assessedAt: updateFreshness.assessedAt,
+      evidenceIds: updateFreshness.obligationId ? [updateFreshness.assessmentId, updateFreshness.obligationId] : [updateFreshness.assessmentId],
+      claimText: `The latest saved assessment found the project ${updateFreshness.state.toLowerCase()} under its update policy.`
+        + (updateFreshness.openObligation ? " A project update remains due." : ""),
+      freshness: updateFreshness.state, classification: updateFreshness.state === "STALE" ? "STALE" : "SYSTEM_VERIFIED",
+    }) : null,
+  };
+}
+
 const currentLeadershipFacts = projectLeadershipFactsSchema.extend({
-  updateFreshness: projectLeadershipFactsSchema.shape.updateFreshness.unwrap().extend({
-    obligationId: z.uuid().optional(),
-  }).refine(({ openObligation, obligationId }) => openObligation === (obligationId !== undefined)).nullable(),
+  updateFreshness: liveUpdateFreshness.refine(({ openObligation, obligationId }) => openObligation === (obligationId !== undefined)).nullable(),
+  scheduleClaim: scheduleClaimSchema.nullable(),
+  updateClaim: updateClaimSchema.nullable(),
+}).refine((facts) => {
+  const { schedule, scheduleClaim, updateFreshness, updateClaim } = facts;
+  if (schedule && schedule.movementDays !== (schedule.baseline && schedule.forecast
+    ? calendarDayDifference(schedule.forecast, schedule.baseline) : null)) return false;
+  if (Boolean(updateClaim) !== Boolean(updateFreshness) || (scheduleClaim && !schedule) ||
+      (updateFreshness && updateFreshness.assessmentId === updateFreshness.obligationId)) return false;
+  const expected = composeProjectLeadershipClaims(facts, scheduleClaim?.evidenceIds[0], updateClaim?.policyRevisionId);
+  return JSON.stringify(scheduleClaim) === JSON.stringify(expected.scheduleClaim)
+    && JSON.stringify(updateClaim) === JSON.stringify(expected.updateClaim)
+    && (!updateFreshness || (Date.parse(updateFreshness.sourceDate) <= Date.parse(updateFreshness.assessedAt) &&
+      Date.parse(updateFreshness.assessedAt) <= Date.parse(facts.asOf)));
 });
 
 export const projectLeadershipAnswerSchema = z.union([
   z.strictObject({ state: z.literal("CLARIFY") }),
-  currentLeadershipFacts.extend({
+  currentLeadershipFacts.safeExtend({
     state: z.literal("ANSWERED"),
     cause: z.literal("UNKNOWN"),
     pendingDelayClarification: projectDelayClarificationSchema.optional(),
   }),
-  currentLeadershipFacts.extend({
+  currentLeadershipFacts.safeExtend({
     state: z.literal("ANSWERED"),
     cause: z.literal("HUMAN_CONFIRMED"),
     delayCause: confirmedProjectDelayCauseSchema,

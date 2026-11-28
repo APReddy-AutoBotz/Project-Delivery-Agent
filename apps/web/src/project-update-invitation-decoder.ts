@@ -142,6 +142,36 @@ function validProjectLeadershipFacts(value: Record<string, unknown>, currentAnsw
 
 const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
 
+function matchesReadClaim(value: unknown, projectId: string, asOf: string): value is Record<string, unknown> {
+  return object(value) && value.projectId === projectId && value.asOf === asOf &&
+    value.provenance === "SYSTEM_VERIFIED" && value.conflict === "NONE";
+}
+
+function validProjectLeadershipClaims(value: Record<string, unknown> & { asOf: string }, projectId: string) {
+  const { scheduleClaim, updateClaim, updateFreshness } = value;
+  const common = ["projectId", "asOf", "claimText", "provenance", "conflict", "evidenceIds", "freshness", "classification"];
+  if (scheduleClaim !== null) {
+    const schedule = decodeAtlasSchedule(value.schedule);
+    if (!schedule || !matchesReadClaim(scheduleClaim, projectId, value.asOf) ||
+        !keys(scheduleClaim, [...common, "scheduleRevision"]) || scheduleClaim.scheduleRevision !== schedule.revision ||
+        scheduleClaim.claimText !== atlasScheduleMovementText(schedule.movementDays) ||
+        scheduleClaim.freshness !== "CURRENT" || scheduleClaim.classification !== "SYSTEM_VERIFIED" ||
+        !dense(scheduleClaim.evidenceIds, 1, 1) || !uuid(scheduleClaim.evidenceIds[0])) return false;
+  }
+  if (updateFreshness === null) return updateClaim === null;
+  if (!object(updateFreshness) || !matchesReadClaim(updateClaim, projectId, value.asOf) ||
+      !keys(updateClaim, [...common, "policyRevisionId", "assessedAt"]) || !uuid(updateClaim.policyRevisionId)) return false;
+  const stale = updateFreshness.state === "STALE";
+  const expectedText = `The latest saved assessment found the project ${stale ? "stale" : "current"} under its update policy.`
+    + (updateFreshness.openObligation ? " A project update remains due." : "");
+  const evidence = updateClaim.evidenceIds;
+  const length = updateFreshness.openObligation ? 2 : 1;
+  return updateClaim.claimText === expectedText && updateClaim.assessedAt === updateFreshness.assessedAt &&
+    updateClaim.freshness === updateFreshness.state && updateClaim.classification === (stale ? "STALE" : "SYSTEM_VERIFIED") &&
+    dense(evidence, length, length) && evidence[0] === updateFreshness.assessmentId &&
+    (length === 1 || (evidence[1] === updateFreshness.obligationId && evidence[1] !== evidence[0]));
+}
+
 function matchesSettledClaim(value: unknown, projectId: string, asOf: string, provenance: "SYSTEM_VERIFIED" | "HUMAN_CONFIRMED", text: string) {
   return object(value) && keys(value, ["claimText", "projectId", "factId", "versionId", "evidenceIds", "policyRevisionId",
     "assessedAt", "validUntil", "provenance", "freshness", "conflict", "classification"]) &&
@@ -157,7 +187,9 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
   if (value.projectId !== projectId || !validProjectLeadershipFacts(value, value.state === "ANSWERED")) return null;
   const required = ["state", "projectId", ...leadershipFactKeys];
-  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"], ["pendingDelayClarification"])) {
+  const currentRequired = [...required, "cause", "scheduleClaim", "updateClaim"];
+  if (value.state === "ANSWERED" && !validProjectLeadershipClaims(value, projectId)) return null;
+  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, currentRequired, ["pendingDelayClarification"])) {
     if (value.pendingDelayClarification !== undefined) {
       const pending = decodeProjectDelayClarification(value.pendingDelayClarification);
       const schedule = decodeAtlasSchedule(value.schedule);
@@ -167,7 +199,7 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
     return value as ProjectLeadershipAnswer;
   }
   const delay = value.delayCause;
-  if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...required, "cause", "delayCause"]) &&
+  if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...currentRequired, "delayCause"]) &&
       object(delay) && keys(delay, ["evidence", "confirmation", "claim"])) {
     const evidence = decodeProjectDelayCauseEvidence(delay.evidence);
     const confirmation = decodeProjectDelayCauseConfirmation(delay.confirmation);

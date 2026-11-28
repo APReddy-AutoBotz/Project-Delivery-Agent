@@ -26,6 +26,7 @@ import {
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
+  composeProjectLeadershipClaims,
   projectDelayClarificationCommandSchema, projectDelayClarificationSchema,
   projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
   projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
@@ -2861,7 +2862,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const row = await this.latestAssessmentRow(tx, current, projectId, policy.policyRevisionId);
     if (!row) return null;
     const freshness = await this.readableUpdateFreshness(tx, current, projectId, row);
-    return freshness ? { assessmentId: row.id, obligationId: row.obligationId,
+    return freshness ? { assessmentId: row.id, obligationId: row.obligationId, policyRevisionId: row.policyRevisionId,
       freshness: { ...freshness, openObligation: row.obligationState === "OPEN" } } : null;
   }
 
@@ -2896,6 +2897,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       facts: { projectId, asOf: iso(await this.now(tx)), schedule,
         updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null },
       obligationId: observed?.freshness.openObligation ? observed.obligationId ?? undefined : undefined,
+      updatePolicyRevisionId: observed?.policyRevisionId,
     };
   }
 
@@ -2918,9 +2920,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       }
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
-      const { facts: currentFacts, obligationId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
-      const facts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
+      const { facts: currentFacts, obligationId, updatePolicyRevisionId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      const storedFacts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
         { ...currentFacts.updateFreshness, ...(obligationId && { obligationId }) } };
+      const scheduleReceipt = storedFacts.schedule && await tx.canonicalCreationReceipt.findFirst({
+        where: { customerId: current.customerId, projectId, operation: "PROJECT" }, select: { id: true },
+      });
+      const facts = { ...storedFacts, ...composeProjectLeadershipClaims(storedFacts, scheduleReceipt?.id, updatePolicyRevisionId) };
       const delayedSchedule = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 ? facts.schedule : null;
       const delayCause = delayedSchedule &&
         await this.confirmedProjectDelayCause(tx, current, projectId, delayedSchedule, new Date(facts.asOf));

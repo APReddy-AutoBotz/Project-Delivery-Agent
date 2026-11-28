@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue, type BlockerAgeAdvice } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue, composeProjectLeadershipClaims, type BlockerAgeAdvice } from "../../packages/domain/dist/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (number: number) => `30000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
@@ -46,9 +46,10 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
       const updateFreshness = causeReads === 0 ? {
         state: "STALE", assessedAt: checkedAt, sourceDate: asOf, sourceDateField: "project.latestValidUpdateAt",
         assessmentId: id(76), openObligation: true, obligationId: id(77),
-      } : null;
-      const facts = { state: "ANSWERED", projectId: id(1), asOf: checkedAt, updateFreshness,
+      } as const : null;
+      const observed = { state: "ANSWERED", projectId: id(1), asOf: checkedAt, updateFreshness,
         schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 } };
+      const facts = { ...observed, ...composeProjectLeadershipClaims(observed, id(78), id(79)) };
       if (++causeReads > 1) return route.fulfill({ json: { ...facts, cause: "UNKNOWN" } });
       const value = "Confirmed integration delay";
       return route.fulfill({ json: { ...facts, cause: "HUMAN_CONFIRMED", delayCause: {
@@ -103,6 +104,8 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   await answer.getByLabel("Project question").fill("Why is this project delayed?");
   await answer.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(answer.getByRole("link", { name: "Cause evidence" })).toBeVisible();
+  await expect(answer).toContainText("The forecast is 4 days later than the baseline.");
+  await expect(answer.locator(`#project-answer-schedule-${id(1)}`)).toContainText(`Creation receipt ${id(78)}.`);
   await expect(answer.locator(`#project-answer-update-${id(1)}`)).toContainText(`Open update obligation ${id(77)}.`);
   await page.clock.fastForward(16000);
   await expect(answer).toContainText("The cause of the delay is unknown.");
