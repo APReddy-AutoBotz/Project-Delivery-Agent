@@ -118,6 +118,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const askedPmForSchedule = currentClarification && askPm.isSuccess;
   const movementClaim = schedule && (answer?.receiptClaims?.find(({ kind }) => kind === "REVIEWED_SCHEDULE") ??
     detailClaims?.find(({ kind }) => kind === "CANONICAL_SCHEDULE"));
+  const scheduleReceipt = schedule && !spreadsheet ? answer?.canonicalCreationReceiptId : undefined;
+  const hasScheduleEvidence = Boolean(movementClaim || scheduleReceipt);
   const pmClaim = assessment && answer?.receiptClaims?.find(({ kind }) => kind === "PM_DELAY_ASSESSMENT");
 
   return <><section className="panel" aria-label="Atlas leadership answer">
@@ -142,7 +144,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
       <p>{movementClaim?.claimText ?? atlasScheduleMovementText(null)}
-        {movementClaim && <> <a href={`#${scheduleRef}`}>Schedule evidence</a></>}</p>
+        {hasScheduleEvidence && <> <a href={`#${scheduleRef}`}>Schedule evidence</a></>}</p>
       {updateClaim && <p>{updateClaim.claimText}{" "}
         {clarificationClaim && `${clarificationClaim.claimText} `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
@@ -181,9 +183,9 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
-        {schedule && movementClaim && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
+        {schedule && hasScheduleEvidence && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
-          {!spreadsheet && <> Creation receipt {movementClaim.evidenceIds[0]}.</>}
+          {scheduleReceipt && <> Creation receipt {scheduleReceipt}.</>}
         </li>}
         {freshness && updateClaim && <li id={freshnessRef} tabIndex={-1}>Update assessment {updateClaim.evidenceIds[0]}. Assessed at {updateClaim.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}

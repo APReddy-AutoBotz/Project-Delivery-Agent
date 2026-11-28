@@ -79,7 +79,10 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
           ...canonical, kind: "CANONICAL_SCHEDULE", claimText: "The forecast is 4 days later than the baseline.", evidenceIds: [id(87)],
         }, { ...canonical, kind: "INTEGRATION_START", claimText: "Integration testing started late.", evidenceIds: [id(81), id(87)] }],
         integrationStart: { milestoneId: id(81), planned: "2026-10-12", actual: "2026-10-13" } };
-      if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null } });
+      if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null,
+        schedule: { ...facts.schedule, forecast: null, movementDays: null },
+        detailClaims: facts.detailClaims.filter(({ kind }) => kind !== "CANONICAL_SCHEDULE"),
+      } });
       return route.fulfill({ json: { ...facts, jiraBlocker: { mappingId: id(82), issueKey: "ATLAS-248",
         claim: { claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: atlas.id, factId: id(83),
           versionId: id(84), evidenceIds: [id(85)], policyRevisionId: id(86), assessedAt: checkedAt,
@@ -156,6 +159,11 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   await page.clock.fastForward(16000);
   await expect(atlasAnswer.getByRole("link", { name: "Jira blocker evidence" })).toHaveCount(0);
   await expect(atlasAnswer).not.toContainText("Agent inference.");
+  await expect(atlasAnswer).toContainText("Schedule movement is unavailable.");
+  const atlasScheduleEvidence = atlasAnswer.getByRole("link", { name: "Schedule evidence" });
+  await expect(atlasScheduleEvidence).toHaveAttribute("href", `#atlas-schedule-${atlas.id}`);
+  await expect(atlasAnswer.locator(`#atlas-schedule-${atlas.id}`))
+    .toContainText(`Baseline 2026-10-17. Forecast unknown. Creation receipt ${id(87)}.`);
   expect(atlasReads).toBe(2);
   await page.getByRole("button", { name: "Sign out" }).click();
   await page.getByRole("button", { name: /^Project manager / }).click();
