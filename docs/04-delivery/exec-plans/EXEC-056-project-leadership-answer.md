@@ -113,3 +113,9 @@ already loaded for the answer. Keep the existing retention deadlines and
 withhold a statement when its supporting record is unavailable. The existing
 Atlas journey checks the exact records. The decoder cases exercise altered
 wording and extended deadlines. Apply or revert the API and browser together.
+
+The unreviewed Atlas fallback uses the sealed canonical creation receipt for
+schedule movement and for the immutable integration milestone's planned and
+actual dates. The forecast inference binds those records and the current
+Jira evidence, with the earliest source deadline. The answer marks it as
+inference and withholds it if the supporting blocker is withdrawn.

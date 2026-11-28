@@ -103,7 +103,7 @@ const liveUpdateFreshness = projectLeadershipFactsSchema.shape.updateFreshness.u
 type LiveUpdateFreshness = z.infer<typeof liveUpdateFreshness>;
 type LeadershipClaimScope = Pick<ProjectLeadershipFacts, "projectId" | "asOf">;
 
-function scheduleMovementText(days: number | null) {
+export function leadershipScheduleMovementText(days: number | null) {
   return days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
     : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`;
 }
@@ -122,7 +122,7 @@ export function composeProjectLeadershipClaims(
 
 function scheduleClaimFields(scope: LeadershipClaimScope, schedule: NonNullable<ProjectLeadershipFacts["schedule"]>, receiptId: string) {
   return {
-    projectId: scope.projectId, asOf: scope.asOf, claimText: scheduleMovementText(schedule.movementDays),
+    projectId: scope.projectId, asOf: scope.asOf, claimText: leadershipScheduleMovementText(schedule.movementDays),
     provenance: "SYSTEM_VERIFIED", conflict: "NONE",
     scheduleRevision: schedule.revision, evidenceIds: [receiptId], freshness: "CURRENT", classification: "SYSTEM_VERIFIED",
   } as const;

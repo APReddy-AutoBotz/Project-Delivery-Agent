@@ -65,21 +65,31 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
       const now = Date.now();
       const checkedAt = new Date(now).toISOString();
       const replyExpiry = new Date(now + 5000).toISOString();
+      const blockerExpiry = new Date(now + 30000).toISOString();
+      const scope = { projectId: atlas.id, asOf: checkedAt, freshness: "CURRENT", conflict: "NONE" };
+      const canonical = { ...scope, validUntil: null, provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED" };
       const facts = { projectId: atlas.id, asOf: checkedAt,
+        canonicalCreationReceiptId: id(87),
         schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 },
         ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: replyExpiry,
           accessStatus: "ACCESS_PENDING" }, receipt: null, delayAssessment: null, pmEscalation: null,
-        detailClaims: [{ kind: "OWNER_ACCESS", projectId: atlas.id, asOf: checkedAt, validUntil: replyExpiry,
+        detailClaims: [{ ...scope, kind: "OWNER_ACCESS", validUntil: replyExpiry,
           claimText: "The owner confirmed API access was pending at the time of the reply.", evidenceIds: [id(80)],
-          provenance: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED" }],
+          provenance: "HUMAN_CONFIRMED", classification: "HUMAN_CONFIRMED" }, {
+          ...canonical, kind: "CANONICAL_SCHEDULE", claimText: "The forecast is 4 days later than the baseline.", evidenceIds: [id(87)],
+        }, { ...canonical, kind: "INTEGRATION_START", claimText: "Integration testing started late.", evidenceIds: [id(81), id(87)] }],
         integrationStart: { milestoneId: id(81), planned: "2026-10-12", actual: "2026-10-13" } };
       if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null } });
       return route.fulfill({ json: { ...facts, jiraBlocker: { mappingId: id(82), issueKey: "ATLAS-248",
         claim: { claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: atlas.id, factId: id(83),
           versionId: id(84), evidenceIds: [id(85)], policyRevisionId: id(86), assessedAt: checkedAt,
-          validUntil: new Date(now + 30000).toISOString(), provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED",
+          validUntil: blockerExpiry, provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED",
           freshness: "CURRENT", conflict: "NONE" } }, forecastInference: { classification: "AGENT_INFERENCE",
-        scheduleRevision: 1, milestoneId: id(81), blockerMappingId: id(82) } } });
+        scheduleRevision: 1, milestoneId: id(81), blockerMappingId: id(82) },
+      detailClaims: [...facts.detailClaims, { ...scope, kind: "FORECAST_INFERENCE",
+        validUntil: blockerExpiry, claimText: "The open integration blocker may still affect the forecast.",
+        evidenceIds: [id(87), id(81), id(85)], provenance: "AGENT_INFERENCE", classification: "AGENT_INFERENCE",
+      }] } });
     }
     const sprintProject = projects.find((entry) => path === `/projects/${entry.id}/scrum-master-blocker-age-suggestions`);
     if (sprintProject) return route.fulfill({ json: advice(sprintProject.id, "scrum_master") }).catch(() => {});

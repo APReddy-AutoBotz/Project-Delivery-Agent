@@ -73,8 +73,9 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
   };
   const receiptClaims = composeAtlasReceiptClaims(facts);
   const pmEscalation = { requestId: other, capturedAt: at, availableUntil };
-  const detailClaims = composeAtlasDetailClaims({ ...facts, pmEscalation });
-  const answer = { ...facts, receiptClaims, detailClaims, integrationStart: null, jiraBlocker: null, pmEscalation };
+  const supported = { ...facts, integrationStart: null, jiraBlocker: null, pmEscalation };
+  const detailClaims = composeAtlasDetailClaims(supported);
+  const answer = { ...supported, receiptClaims, detailClaims };
   expect(receiptClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
   expect(atlasLeadershipAnswerSchema.safeParse(answer).success).toBe(true);
   expect(decodeAtlasLeadershipAnswer(answer, id)).toEqual(answer);
@@ -100,6 +101,15 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
     expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
   }
+  const canonical = { ...supported, canonicalCreationReceiptId: other, scheduleCitation: undefined,
+    integrationStart: { milestoneId: id, planned: "2026-01-01", actual: "2026-01-02" } };
+  const canonicalAnswer = { ...canonical, receiptClaims: composeAtlasReceiptClaims(canonical),
+    detailClaims: composeAtlasDetailClaims(canonical) };
+  expect(atlasLeadershipAnswerSchema.safeParse(canonicalAnswer).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(canonicalAnswer, id)).toEqual(canonicalAnswer);
+  const falseStart = { ...canonicalAnswer, integrationStart: { ...canonical.integrationStart, actual: "2026-01-01" } };
+  expect(atlasLeadershipAnswerSchema.safeParse(falseStart).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(falseStart, id)).toBeNull();
 });
 
 it("binds a pending delay request to its schedule and preserves supported evidence text", () => {

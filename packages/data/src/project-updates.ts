@@ -2556,6 +2556,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       movementDays: baseline && forecast ? calendarDayDifference(forecast, baseline) : null };
   }
 
+  private async canonicalProjectCreationReceiptId(tx: Tx, customerId: string, projectId: string) {
+    const receipt = await tx.canonicalCreationReceipt.findFirst({
+      where: { customerId, projectId, operation: "PROJECT" }, select: { id: true },
+    });
+    return receipt?.id;
+  }
+
   private async atlasScheduleEvidence(tx: Tx, current: Actor, projectId: string, schedule: AtlasSchedule | null,
     expected?: z.infer<typeof atlasScheduleCitationSchema>) {
     if (!schedule) return null;
@@ -2923,10 +2930,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const { facts: currentFacts, obligationId, updatePolicyRevisionId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
       const storedFacts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
         { ...currentFacts.updateFreshness, ...(obligationId && { obligationId }) } };
-      const scheduleReceipt = storedFacts.schedule && await tx.canonicalCreationReceipt.findFirst({
-        where: { customerId: current.customerId, projectId, operation: "PROJECT" }, select: { id: true },
-      });
-      const facts = { ...storedFacts, ...composeProjectLeadershipClaims(storedFacts, scheduleReceipt?.id, updatePolicyRevisionId) };
+      const scheduleReceiptId = storedFacts.schedule
+        ? await this.canonicalProjectCreationReceiptId(tx, current.customerId, projectId) : undefined;
+      const facts = { ...storedFacts, ...composeProjectLeadershipClaims(storedFacts, scheduleReceiptId, updatePolicyRevisionId) };
       const delayedSchedule = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 ? facts.schedule : null;
       const delayCause = delayedSchedule &&
         await this.confirmedProjectDelayCause(tx, current, projectId, delayedSchedule, new Date(facts.asOf));
@@ -3600,7 +3606,9 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     return this.transaction(async (tx) => {
       const { answer, approved, hasCanonicalSchedule } = await this.loadAtlasLeadershipAnswer(tx, current, projectId);
       const scope = { customerId: current.customerId, projectId };
-      const milestone = hasCanonicalSchedule ? await tx.milestone.findFirst({
+      const canonicalCreationReceiptId = hasCanonicalSchedule
+        ? await this.canonicalProjectCreationReceiptId(tx, scope.customerId, projectId) : undefined;
+      const milestone = canonicalCreationReceiptId ? await tx.milestone.findFirst({
         where: { ...scope, key: atlasIntegrationMilestoneKey },
         select: { id: true, plannedStart: true, actualStart: true },
       }) : null;
@@ -3634,11 +3642,12 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const receiptClaims = composeAtlasReceiptClaims({ ...answer, asOf });
       const updateClaim = composeLeadershipUpdateClaim({ projectId, asOf }, updateFreshness, observedUpdate?.policyRevisionId);
       const pmEscalation = escalation && escalation.availableUntil > asOf ? escalation : null;
-      const detailClaims = composeAtlasDetailClaims({ ...answer, asOf, updateFreshness, pmEscalation });
+      const detailClaims = composeAtlasDetailClaims({ ...answer, asOf, updateFreshness, pmEscalation, canonicalCreationReceiptId,
+        integrationStart, jiraBlocker: blocker, forecastInference });
       return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, updateClaim, delayClarificationState,
         ...(receiptClaims.length > 0 && { receiptClaims }),
         ...(detailClaims.length > 0 && { detailClaims }),
-        integrationStart, forecastInference,
+        canonicalCreationReceiptId, integrationStart, forecastInference,
         jiraBlocker: blocker,
         pmEscalation,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
