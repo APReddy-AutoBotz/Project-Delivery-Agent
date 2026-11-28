@@ -138,7 +138,8 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
         {schedule && <li id={scheduleEvidence} tabIndex={-1}>Canonical schedule, revision {schedule.revision}.
           Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
         {freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {freshness.assessmentId} at {freshness.assessedAt}.
-          {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.</li>}
+          {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.
+          {freshness.obligationId && ` Open update obligation ${freshness.obligationId}.`}</li>}
         {cause && <li id={causeEvidence} tabIndex={-1}>
           Evidence {cause.claim.evidenceIds[0]}. PM confirmation {cause.confirmation.id} at {cause.confirmation.confirmedAt}.
         </li>}

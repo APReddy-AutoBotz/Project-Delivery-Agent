@@ -80,3 +80,8 @@ assessment in the existing Atlas browser journey. Check that the browser and API
 reject a missing assessment reference or an inconsistent obligation reference.
 The references belong to the live answer contract and use existing records.
 Revert the API and web changes together to restore the earlier answer contract.
+
+The normal selected-project answer also cites the exact ID of the open
+update obligation in its existing assessment evidence. It uses the same
+source-authorized read as Atlas. Saved reports and comparison responses
+retain their existing evidence shape.
