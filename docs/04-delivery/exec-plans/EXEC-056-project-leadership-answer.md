@@ -97,3 +97,9 @@ citations against the authorized response before rendering. The existing
 native and browser cases verify the persisted references and the decoder
 rejects unsupported wording. This extends STORY-028 and AC-QA-002.
 Apply or revert the API and browser together.
+
+The Atlas live answer uses the same assessment claim and cites the saved
+assessment, its policy revision and the open obligation when present. If
+source access is withdrawn, the API withholds the freshness data and its claim
+together. The existing Atlas browser case verifies the wording, references
+and withdrawal. The decoder also rejects unsupported text and mismatched IDs.

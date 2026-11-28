@@ -2,8 +2,8 @@ import { z } from "zod";
 import { canonicalDateSchema, canonicalSubjectSchema } from "./canonical-project.js";
 import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
-import { projectDelayClarificationCommandSchema, projectDelayClarificationSchema, projectLeadershipScheduleSchema,
-  settledLeadershipClaimSchema } from "./project-leadership-answer.js";
+import { leadershipUpdateClaimSchema, matchesLeadershipUpdateClaim, projectDelayClarificationCommandSchema,
+  projectDelayClarificationSchema, projectLeadershipScheduleSchema, settledLeadershipClaimSchema } from "./project-leadership-answer.js";
 import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
 export const atlasApprovalProjectCode = "ATLAS-APPROVAL-DEMO";
@@ -170,6 +170,7 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
   }).refine((freshness) => freshness.openObligation === (freshness.obligationId !== undefined), {
     path: ["obligationId"], message: "An open obligation requires its evidence ID",
   }).nullable().optional(),
+  updateClaim: leadershipUpdateClaimSchema.nullable().optional(),
   integrationStart: z.strictObject({
     milestoneId: z.uuid(),
     planned: z.iso.date(),
@@ -203,7 +204,9 @@ export const atlasLeadershipAnswerSchema = atlasLeadershipFactsSchema.extend({
     const days = reviewedMovementDays(schedule);
     return days !== null && days === schedule?.movementDays;
   })
-  .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)));
+  .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)))
+  .refine(({ projectId, asOf, updateFreshness, updateClaim }) =>
+    matchesLeadershipUpdateClaim({ projectId, asOf }, updateFreshness ?? null, updateClaim ?? null));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;
 
 export const atlasManagementFactsSchema = atlasLeadershipFactsSchema.extend({

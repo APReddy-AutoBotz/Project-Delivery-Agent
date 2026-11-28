@@ -80,13 +80,14 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const blocker = candidateBlocker && (candidateBlocker.claim.validUntil === null ||
     Date.parse(candidateBlocker.claim.validUntil) > Date.now()) ? candidateBlocker : null;
   const freshness = answer?.updateFreshness;
+  const updateClaim = answer?.updateClaim;
   const pending = freshness?.activeClarification;
   const clarification = pending && Date.parse(pending.availableUntil) > Date.now() ? pending : null;
   const escalation = reply && answer?.pmEscalation && Date.parse(answer.pmEscalation.availableUntil) > Date.now()
     ? answer.pmEscalation : null;
   const prior = answer?.priorSnapshot;
   const scheduleRef = `atlas-schedule-${projectId}`;
-  const freshnessRef = `atlas-update-freshness-${projectId}`;
+  const freshnessRef = `atlas-update-freshness-${updateClaim?.evidenceIds[0]}`;
   const integrationRef = `atlas-integration-${projectId}`;
   const blockerRef = `atlas-blocker-${projectId}`;
   const escalationRef = `atlas-pm-escalation-${projectId}`;
@@ -134,8 +135,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
       <p>{movement} {schedule && <a href={`#${scheduleRef}`}>Schedule evidence</a>}</p>
-      {freshness && <p>The latest saved assessment marked the project update {freshness.state.toLowerCase()}.{" "}
-        {freshness.openObligation && "A project update remains due. "}
+      {updateClaim && <p>{updateClaim.claimText}{" "}
         {clarification && `A clarification about the ${clarification.factType === "project.forecast" ? "forecast finish date" : "project status"} is open. `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
@@ -176,10 +176,10 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {schedule && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
         </li>}
-        {freshness && <li id={freshnessRef} tabIndex={-1}>Update assessment {freshness.assessmentId}. Assessed at {freshness.assessedAt}.{" "}
+        {freshness && updateClaim && <li id={freshnessRef} tabIndex={-1}>Update assessment {updateClaim.evidenceIds[0]}. Assessed at {updateClaim.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
           at {freshness.sourceDate}.
-          {freshness.obligationId && ` Open update obligation ${freshness.obligationId}.`}
+          {updateClaim.evidenceIds[1] && ` Open update obligation ${updateClaim.evidenceIds[1]}.`}
           {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
         {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
         {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.

@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
-import { composeProjectLeadershipClaims, projectDelayClarificationReviewSchema, projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
+import { composeLeadershipUpdateClaim, composeProjectLeadershipClaims, projectDelayClarificationReviewSchema,
+  projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
 import { atlasLeadershipAnswerSchema, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
 import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
   decodeAtlasLeadershipAnswer, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
@@ -27,16 +28,23 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
 it("requires the saved Atlas assessment and cites an obligation only while open", () => {
   const answer = { projectId: id, asOf: later, schedule: null, ownerReply: null, receipt: null,
     delayAssessment: null, integrationStart: null, jiraBlocker: null, pmEscalation: null };
-  const freshness = { assessmentId: other, state: "STALE", assessedAt: later, sourceDate: at,
-    sourceDateField: "project.latestValidUpdateAt", openObligation: true, obligationId: id };
+  const freshness = { assessmentId: other, state: "STALE" as const, assessedAt: later, sourceDate: at,
+    sourceDateField: "project.latestValidUpdateAt" as const, openObligation: true, obligationId: id };
   for (const updateFreshness of [null, freshness, { ...freshness, openObligation: false, obligationId: undefined }]) {
-    const value = { ...answer, updateFreshness };
+    const updateClaim = composeLeadershipUpdateClaim({ projectId: id, asOf: later }, updateFreshness, id);
+    const value = { ...answer, updateFreshness, updateClaim };
     expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(true);
     expect(decodeAtlasLeadershipAnswer(value, id)).toEqual(value);
   }
-  for (const updateFreshness of [{ ...freshness, assessmentId: undefined }, { ...freshness, obligationId: undefined },
-    { ...freshness, obligationId: "unverified" }, { ...freshness, openObligation: false }]) {
-    const value = { ...answer, updateFreshness };
+  const updateClaim = composeLeadershipUpdateClaim({ projectId: id, asOf: later }, freshness, id);
+  for (const [updateFreshness, claim] of [
+    [freshness, null], [null, updateClaim], [freshness, { ...updateClaim, projectId: other }],
+    [freshness, { ...updateClaim, claimText: "The project is on schedule." }],
+    [freshness, { ...updateClaim, evidenceIds: [id, other] }],
+    [{ ...freshness, assessmentId: undefined }, updateClaim], [{ ...freshness, obligationId: undefined }, updateClaim],
+    [{ ...freshness, obligationId: "unverified" }, updateClaim], [{ ...freshness, openObligation: false }, updateClaim],
+  ]) {
+    const value = { ...answer, updateFreshness, updateClaim: claim };
     expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(value, id)).toBeNull();
   }
@@ -92,6 +100,7 @@ it("binds a pending delay request to its schedule and preserves supported eviden
     ...composeProjectLeadershipClaims({ ...facts, updateFreshness: freshness }, other, id) };
   for (const unsupported of [
     { ...withFreshness, scheduleClaim: { ...withFreshness.scheduleClaim, claimText: "The forecast moved by 99 days." } },
+    { ...withFreshness, scheduleClaim: { ...withFreshness.scheduleClaim, evidenceIds: ["unverified"] } },
     { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, evidenceIds: [other, id] } },
     { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, claimText: "There is no stale update." } },
     { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, projectId: other } },

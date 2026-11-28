@@ -92,7 +92,7 @@ const scheduleClaimSchema = readClaim.extend({
   scheduleRevision: projectLeadershipScheduleSchema.shape.revision,
   evidenceIds: z.tuple([z.uuid()]), freshness: z.literal("CURRENT"), classification: z.literal("SYSTEM_VERIFIED"),
 });
-const updateClaimSchema = readClaim.extend({
+export const leadershipUpdateClaimSchema = readClaim.extend({
   policyRevisionId: z.uuid(), assessedAt: z.iso.datetime(),
   evidenceIds: z.array(z.uuid()).min(1).max(2),
   freshness: z.enum(["CURRENT", "STALE"]), classification: z.enum(["SYSTEM_VERIFIED", "STALE"]),
@@ -101,6 +101,7 @@ const liveUpdateFreshness = projectLeadershipFactsSchema.shape.updateFreshness.u
   obligationId: z.uuid().optional(),
 });
 type LiveUpdateFreshness = z.infer<typeof liveUpdateFreshness>;
+type LeadershipClaimScope = Pick<ProjectLeadershipFacts, "projectId" | "asOf">;
 
 function scheduleMovementText(days: number | null) {
   return days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
@@ -112,37 +113,61 @@ export function composeProjectLeadershipClaims(
   scheduleReceiptId: string | undefined, updatePolicyRevisionId: string | undefined,
 ) {
   const { projectId, asOf, schedule, updateFreshness } = facts;
-  const origin = { projectId, asOf, provenance: "SYSTEM_VERIFIED", conflict: "NONE" } as const;
+  const scope = { projectId, asOf };
   return {
-    scheduleClaim: schedule && scheduleReceiptId ? scheduleClaimSchema.parse({
-      ...origin, scheduleRevision: schedule.revision, evidenceIds: [scheduleReceiptId],
-      claimText: scheduleMovementText(schedule.movementDays), freshness: "CURRENT", classification: "SYSTEM_VERIFIED",
-    }) : null,
-    updateClaim: updateFreshness && updatePolicyRevisionId ? updateClaimSchema.parse({
-      ...origin, policyRevisionId: updatePolicyRevisionId, assessedAt: updateFreshness.assessedAt,
-      evidenceIds: updateFreshness.obligationId ? [updateFreshness.assessmentId, updateFreshness.obligationId] : [updateFreshness.assessmentId],
-      claimText: `The latest saved assessment found the project ${updateFreshness.state.toLowerCase()} under its update policy.`
-        + (updateFreshness.openObligation ? " A project update remains due." : ""),
-      freshness: updateFreshness.state, classification: updateFreshness.state === "STALE" ? "STALE" : "SYSTEM_VERIFIED",
-    }) : null,
+    scheduleClaim: schedule && scheduleReceiptId ? scheduleClaimSchema.parse(scheduleClaimFields(scope, schedule, scheduleReceiptId)) : null,
+    updateClaim: composeLeadershipUpdateClaim(scope, updateFreshness, updatePolicyRevisionId),
   };
+}
+
+function scheduleClaimFields(scope: LeadershipClaimScope, schedule: NonNullable<ProjectLeadershipFacts["schedule"]>, receiptId: string) {
+  return {
+    projectId: scope.projectId, asOf: scope.asOf, claimText: scheduleMovementText(schedule.movementDays),
+    provenance: "SYSTEM_VERIFIED", conflict: "NONE",
+    scheduleRevision: schedule.revision, evidenceIds: [receiptId], freshness: "CURRENT", classification: "SYSTEM_VERIFIED",
+  } as const;
+}
+
+export function composeLeadershipUpdateClaim(scope: LeadershipClaimScope,
+  freshness: LiveUpdateFreshness | null, policyRevisionId: string | undefined) {
+  return freshness && policyRevisionId
+    ? leadershipUpdateClaimSchema.parse(leadershipUpdateClaimFields(scope, freshness, policyRevisionId)) : null;
+}
+
+function leadershipUpdateClaimFields(scope: LeadershipClaimScope, freshness: LiveUpdateFreshness, policyRevisionId: string) {
+  const { assessmentId, obligationId, assessedAt, state, openObligation } = freshness;
+  return {
+    projectId: scope.projectId, asOf: scope.asOf,
+    claimText: `The latest saved assessment found the project ${state.toLowerCase()} under its update policy.`
+      + (openObligation ? " A project update remains due." : ""),
+    provenance: "SYSTEM_VERIFIED", conflict: "NONE", policyRevisionId, assessedAt,
+    evidenceIds: obligationId ? [assessmentId, obligationId] : [assessmentId],
+    freshness: state, classification: state === "STALE" ? "STALE" : "SYSTEM_VERIFIED",
+  } as const;
+}
+
+export function matchesLeadershipUpdateClaim(scope: LeadershipClaimScope, freshness: LiveUpdateFreshness | null,
+  claim: z.infer<typeof leadershipUpdateClaimSchema> | null) {
+  if (!freshness || !claim) return !freshness && !claim;
+  if (freshness.openObligation !== (freshness.obligationId !== undefined) ||
+      freshness.assessmentId === freshness.obligationId ||
+      Date.parse(freshness.sourceDate) > Date.parse(freshness.assessedAt) ||
+      Date.parse(freshness.assessedAt) > Date.parse(scope.asOf)) return false;
+  return JSON.stringify(claim) === JSON.stringify(leadershipUpdateClaimFields(scope, freshness, claim.policyRevisionId));
 }
 
 const currentLeadershipFacts = projectLeadershipFactsSchema.extend({
   updateFreshness: liveUpdateFreshness.refine(({ openObligation, obligationId }) => openObligation === (obligationId !== undefined)).nullable(),
   scheduleClaim: scheduleClaimSchema.nullable(),
-  updateClaim: updateClaimSchema.nullable(),
+  updateClaim: leadershipUpdateClaimSchema.nullable(),
 }).refine((facts) => {
-  const { schedule, scheduleClaim, updateFreshness, updateClaim } = facts;
+  const { projectId, asOf, schedule, scheduleClaim, updateFreshness, updateClaim } = facts;
+  const scope = { projectId, asOf };
   if (schedule && schedule.movementDays !== (schedule.baseline && schedule.forecast
     ? calendarDayDifference(schedule.forecast, schedule.baseline) : null)) return false;
-  if (Boolean(updateClaim) !== Boolean(updateFreshness) || (scheduleClaim && !schedule) ||
-      (updateFreshness && updateFreshness.assessmentId === updateFreshness.obligationId)) return false;
-  const expected = composeProjectLeadershipClaims(facts, scheduleClaim?.evidenceIds[0], updateClaim?.policyRevisionId);
-  return JSON.stringify(scheduleClaim) === JSON.stringify(expected.scheduleClaim)
-    && JSON.stringify(updateClaim) === JSON.stringify(expected.updateClaim)
-    && (!updateFreshness || (Date.parse(updateFreshness.sourceDate) <= Date.parse(updateFreshness.assessedAt) &&
-      Date.parse(updateFreshness.assessedAt) <= Date.parse(facts.asOf)));
+  const expectedSchedule = schedule && scheduleClaim ? scheduleClaimFields(scope, schedule, scheduleClaim.evidenceIds[0]) : null;
+  return matchesLeadershipUpdateClaim(scope, updateFreshness, updateClaim) &&
+    JSON.stringify(scheduleClaim) === JSON.stringify(expectedSchedule);
 });
 
 export const projectLeadershipAnswerSchema = z.union([
