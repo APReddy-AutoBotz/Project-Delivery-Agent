@@ -1,8 +1,9 @@
 import { expect, it } from "vitest";
 import { projectUpdateClarificationQuestion, projectUpdateRecipientRequestViewSchema,
   projectUpdateResponseReceiptSchema } from "../packages/domain/src/project-update-capture.js";
-import { projectDelayClarificationReviewSchema, projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
-import { atlasLeadershipAnswerSchema, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
+import { composeLeadershipUpdateClaim, composeProjectLeadershipClaims, projectDelayClarificationReviewSchema,
+  projectLeadershipAnswerSchema } from "../packages/domain/src/project-leadership-answer.js";
+import { atlasLeadershipAnswerSchema, composeAtlasDetailClaims, composeAtlasReceiptClaims } from "../packages/domain/src/atlas-update-approval.js";
 import { decodeInvitation, decodeInvitationReceipt, decodeProjectDelayClarificationReview,
   decodeAtlasLeadershipAnswer, decodeProjectLeadershipAnswer } from "../apps/web/src/project-update-invitation-decoder.js";
 
@@ -27,19 +28,37 @@ it("validates both sets of scoped evidence in a leadership comparison", () => {
 it("requires the saved Atlas assessment and cites an obligation only while open", () => {
   const answer = { projectId: id, asOf: later, schedule: null, ownerReply: null, receipt: null,
     delayAssessment: null, integrationStart: null, jiraBlocker: null, pmEscalation: null };
-  const freshness = { assessmentId: other, state: "STALE", assessedAt: later, sourceDate: at,
-    sourceDateField: "project.latestValidUpdateAt", openObligation: true, obligationId: id };
+  const freshness = { assessmentId: other, state: "STALE" as const, assessedAt: later, sourceDate: at,
+    sourceDateField: "project.latestValidUpdateAt" as const, openObligation: true, obligationId: id };
   for (const updateFreshness of [null, freshness, { ...freshness, openObligation: false, obligationId: undefined }]) {
-    const value = { ...answer, updateFreshness };
+    const updateClaim = composeLeadershipUpdateClaim({ projectId: id, asOf: later }, updateFreshness, id);
+    const value = { ...answer, updateFreshness, updateClaim };
     expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(true);
     expect(decodeAtlasLeadershipAnswer(value, id)).toEqual(value);
   }
-  for (const updateFreshness of [{ ...freshness, assessmentId: undefined }, { ...freshness, obligationId: undefined },
-    { ...freshness, obligationId: "unverified" }, { ...freshness, openObligation: false }]) {
-    const value = { ...answer, updateFreshness };
+  const updateClaim = composeLeadershipUpdateClaim({ projectId: id, asOf: later }, freshness, id);
+  for (const [updateFreshness, claim] of [
+    [freshness, null], [null, updateClaim], [freshness, { ...updateClaim, projectId: other }],
+    [freshness, { ...updateClaim, claimText: "The project is on schedule." }],
+    [freshness, { ...updateClaim, evidenceIds: [id, other] }],
+    [{ ...freshness, assessmentId: undefined }, updateClaim], [{ ...freshness, obligationId: undefined }, updateClaim],
+    [{ ...freshness, obligationId: "unverified" }, updateClaim], [{ ...freshness, openObligation: false }, updateClaim],
+  ]) {
+    const value = { ...answer, updateFreshness, updateClaim: claim };
     expect(atlasLeadershipAnswerSchema.safeParse(value).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(value, id)).toBeNull();
   }
+  const updateFreshness = { ...freshness, activeClarification: {
+    clarificationId: "50000000-0000-4000-8000-000000000001", factType: "project.forecast" as const,
+    requestedAt: at, availableUntil: "2026-01-03T00:00:00.000Z",
+  } };
+  const detailClaims = composeAtlasDetailClaims({ ...answer, updateFreshness });
+  const withClarification = { ...answer, updateFreshness, updateClaim, detailClaims };
+  expect(atlasLeadershipAnswerSchema.safeParse(withClarification).success).toBe(true);
+  expect(decodeAtlasLeadershipAnswer(withClarification, id)).toEqual(withClarification);
+  const unsupported = { ...withClarification, updateFreshness: freshness };
+  expect(atlasLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
+  expect(decodeAtlasLeadershipAnswer(unsupported, id)).toBeNull();
 });
 
 it("requires exact Atlas schedule and PM statements while their supporting receipts are available", () => {
@@ -53,7 +72,9 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
       confirmedBy: "synthetic-pm", cause: "API_ACCESS_DELAY" as const, confidence: "MEDIUM" as const },
   };
   const receiptClaims = composeAtlasReceiptClaims(facts);
-  const answer = { ...facts, receiptClaims, integrationStart: null, jiraBlocker: null, pmEscalation: null };
+  const pmEscalation = { requestId: other, capturedAt: at, availableUntil };
+  const detailClaims = composeAtlasDetailClaims({ ...facts, pmEscalation });
+  const answer = { ...facts, receiptClaims, detailClaims, integrationStart: null, jiraBlocker: null, pmEscalation };
   expect(receiptClaims.map(({ validUntil }) => validUntil)).toEqual([availableUntil, availableUntil]);
   expect(atlasLeadershipAnswerSchema.safeParse(answer).success).toBe(true);
   expect(decodeAtlasLeadershipAnswer(answer, id)).toEqual(answer);
@@ -70,22 +91,45 @@ it("requires exact Atlas schedule and PM statements while their supporting recei
     expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
     expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
   }
+  for (const unsupported of [undefined, detailClaims.slice(1), [
+    { ...detailClaims[0], claimText: "The owner restored access." }, ...detailClaims.slice(1),
+  ], [
+    ...detailClaims.slice(0, 2), { ...detailClaims[2], validUntil: facts.ownerReply.availableUntil },
+  ]]) {
+    const changed = { ...answer, detailClaims: unsupported };
+    expect(atlasLeadershipAnswerSchema.safeParse(changed).success).toBe(false);
+    expect(decodeAtlasLeadershipAnswer(changed, id)).toBeNull();
+  }
 });
 
 it("binds a pending delay request to its schedule and preserves supported evidence text", () => {
   const schedule = { revision: 1, baseline: "2026-01-01", forecast: "2026-01-03", movementDays: 2 };
   const pending = { id, requestedAt: at, schedule };
-  const unknown = { state: "ANSWERED", projectId: id, asOf: later, schedule, updateFreshness: null, cause: "UNKNOWN" };
+  const facts = { projectId: id, asOf: later, schedule, updateFreshness: null };
+  const unknown = { ...facts, ...composeProjectLeadershipClaims(facts, other, undefined), state: "ANSWERED", cause: "UNKNOWN" };
   expect(decodeProjectLeadershipAnswer({ ...unknown, pendingDelayClarification: pending }, id)).not.toBeNull();
   expect(decodeProjectLeadershipAnswer({ ...unknown,
     pendingDelayClarification: { ...pending, schedule: { ...schedule, revision: 2 } } }, id)).toBeNull();
   const freshness = { assessmentId: id, assessedAt: at, sourceDate: at, sourceDateField: "project.createdAt",
-    state: "STALE", openObligation: true, obligationId: other };
+    state: "STALE", openObligation: true, obligationId: other } as const;
   for (const [updateFreshness, readable] of [[freshness, true], [{ ...freshness, obligationId: undefined }, false],
     [{ ...freshness, openObligation: false }, false]] as const) {
-    const answer = { ...unknown, updateFreshness };
+    const answer = { ...unknown, updateFreshness, ...composeProjectLeadershipClaims({ ...facts, updateFreshness }, other, id) };
     expect(decodeProjectLeadershipAnswer(answer, id)).toEqual(readable ? answer : null);
     expect(projectLeadershipAnswerSchema.safeParse(answer).success).toBe(readable);
+  }
+  const withFreshness = { ...unknown, updateFreshness: freshness,
+    ...composeProjectLeadershipClaims({ ...facts, updateFreshness: freshness }, other, id) };
+  for (const unsupported of [
+    { ...withFreshness, scheduleClaim: { ...withFreshness.scheduleClaim, claimText: "The forecast moved by 99 days." } },
+    { ...withFreshness, scheduleClaim: { ...withFreshness.scheduleClaim, evidenceIds: ["unverified"] } },
+    { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, evidenceIds: [other, id] } },
+    { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, claimText: "There is no stale update." } },
+    { ...withFreshness, updateClaim: { ...withFreshness.updateClaim, projectId: other } },
+    { ...withFreshness, updateClaim: null },
+  ]) {
+    expect(decodeProjectLeadershipAnswer(unsupported, id)).toBeNull();
+    expect(projectLeadershipAnswerSchema.safeParse(unsupported).success).toBe(false);
   }
   const confirmation = { id, clarificationId: id, versionId: other, confirmedAt: later };
   for (const [value, readable] of [[`${"検".repeat(200)}\n設備の確認を待ちました。`, true],
@@ -95,7 +139,7 @@ it("binds a pending delay request to its schedule and preserves supported eviden
     const claim = { claimText: `PM-confirmed delay cause · ${value}`, projectId: id, factId: id, versionId: other,
       evidenceIds: [id], policyRevisionId: other, assessedAt: later, provenance: "HUMAN_CONFIRMED",
       freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED", validUntil: "2026-01-03T00:00:00.000Z" };
-    const answer = { state: "ANSWERED", projectId: id, asOf: later, schedule, updateFreshness: null, cause: "HUMAN_CONFIRMED",
+    const answer = { ...unknown, cause: "HUMAN_CONFIRMED",
       delayCause: { evidence, confirmation, claim } };
     expect(decodeProjectDelayClarificationReview(review)).toEqual(readable ? review : null);
     expect(decodeProjectLeadershipAnswer(answer, id)).toEqual(readable ? answer : null);

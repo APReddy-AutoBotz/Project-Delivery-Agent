@@ -83,6 +83,8 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
   const schedule = answer?.schedule;
   const days = schedule?.movementDays ?? null;
   const freshness = answer?.updateFreshness;
+  const scheduleClaim = answer?.scheduleClaim;
+  const updateClaim = answer?.updateClaim;
   const scheduleEvidence = `project-answer-schedule-${projectId}`;
   const updateEvidence = `project-answer-update-${projectId}`;
   const causeEvidence = `project-answer-cause-${projectId}`;
@@ -116,9 +118,8 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
     {result?.state === "CLARIFY" && <Message>Ask about the current schedule or delay for the selected project.</Message>}
     {result?.state === "COMPARISON" && <ProjectSnapshotComparison answer={result} />}
     {answer && <div aria-live="polite">
-      <p>{days === null ? "Schedule movement is unavailable." : days === 0 ? "The baseline and forecast dates match."
-        : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`}
-        {schedule && <> <a href={`#${scheduleEvidence}`}>Schedule evidence</a></>}
+      <p>{scheduleClaim?.claimText ?? "Schedule movement is unavailable."}
+        {scheduleClaim && <> <a href={`#${scheduleEvidence}`}>Schedule evidence</a></>}
       </p>
       {cause && <p className="update-plain-text">{cause.claim.claimText} <a href={`#${causeEvidence}`}>
         Cause evidence</a></p>}
@@ -130,14 +131,13 @@ export function ProjectLeadershipAnswer({ projectId, scope, request, isCurrent }
           <RequestProjectDelayClarification key={JSON.stringify([scope, schedule.revision])}
             projectId={projectId} schedule={schedule} request={request} isCurrent={isCurrent} />}
       </>}
-      {freshness && <p>The latest saved assessment found the project {freshness.state.toLowerCase()} under its update policy.
-        {freshness.openObligation && " A project update remains due."} <a href={`#${updateEvidence}`}>Update evidence</a>
-      </p>}
+      {updateClaim && <p>{updateClaim.claimText} <a href={`#${updateEvidence}`}>Update evidence</a></p>}
       <p>Checked at {answer.asOf}.</p>
-      {(schedule || freshness) && <ul>
-        {schedule && <li id={scheduleEvidence} tabIndex={-1}>Canonical schedule, revision {schedule.revision}.
-          Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.</li>}
-        {freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {freshness.assessmentId} at {freshness.assessedAt}.
+      {(scheduleClaim || updateClaim || cause) && <ul>
+        {scheduleClaim && schedule && <li id={scheduleEvidence} tabIndex={-1}>Canonical schedule, revision {scheduleClaim.scheduleRevision}.
+          Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
+          Creation receipt {scheduleClaim.evidenceIds[0]}.</li>}
+        {updateClaim && freshness && <li id={updateEvidence} tabIndex={-1}>Assessment {updateClaim.evidenceIds[0]} at {updateClaim.assessedAt}.
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? " Latest verified update" : " Project created"} at {freshness.sourceDate}.
           {freshness.obligationId && ` Open update obligation ${freshness.obligationId}.`}</li>}
         {cause && <li id={causeEvidence} tabIndex={-1}>

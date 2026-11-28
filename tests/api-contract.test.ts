@@ -27,7 +27,8 @@ import {
   ingestionConfigurationSchema,
   ingestionReceiptReadResultSchema,
 } from "../packages/domain/src/index.js";
-import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasReceiptClaims, ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
+import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasDetailClaims, composeAtlasReceiptClaims,
+  ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -481,6 +482,8 @@ const atlasLeadershipFixture = {
 };
 const atlasDelayCommand = { approvalId: project.id, receiptId: project.id, scheduleRevision: 1,
   cause: "API_ACCESS_DELAY" as const, confidence: "MEDIUM" as const };
+const atlasPmEscalationFixture = { requestId: project.id, capturedAt: "2026-10-01T12:00:00.000Z",
+  availableUntil: "2026-10-02T12:00:00.000Z" };
 const atlasManagementFixture = { ...atlasLeadershipFixture, id: project.id, reportingPeriod: "2026-10",
   approvalState: "DRAFT" as const, approval: null, classification: "SYNTHETIC_INTERNAL" as const };
 const atlasReportPendingFixture = { ...atlasManagementFixture, approvalState: "PENDING" as const,
@@ -509,7 +512,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     const priorSnapshotId = (body as { priorSnapshotId?: string }).priorSnapshotId;
     if (priorSnapshotId) return { ...projectAnswerFixture, state: "COMPARISON" as const,
       priorSnapshot: { id: priorSnapshotId, asOf: "2026-10-20T11:00:00.000Z", schedule: null, updateFreshness: null } };
-    return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const };
+    return { ...projectAnswerFixture, state: "ANSWERED" as const, cause: "UNKNOWN" as const, scheduleClaim: null, updateClaim: null };
   }),
   projectDelayClarification: vi.fn(async () => ({ ...projectDelayFixture, causeEvidence: null, confirmation: null })),
   requestProjectDelayClarification: vi.fn(async () => projectDelayFixture),
@@ -586,6 +589,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
   atlasLeadershipAnswer: vi.fn(async () => ({
     ...atlasLeadershipFixture,
     receiptClaims: composeAtlasReceiptClaims(atlasLeadershipFixture),
+    detailClaims: composeAtlasDetailClaims({ ...atlasLeadershipFixture, pmEscalation: atlasPmEscalationFixture }),
     integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
     jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const, claim: {
       claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
@@ -596,8 +600,7 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     } },
     forecastInference: { classification: "AGENT_INFERENCE" as const, scheduleRevision: 1,
       milestoneId: project.id, blockerMappingId: project.id },
-    pmEscalation: { requestId: project.id, capturedAt: "2026-10-01T12:00:00.000Z",
-      availableUntil: "2026-10-02T12:00:00.000Z" },
+    pmEscalation: atlasPmEscalationFixture,
   })),
   atlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
   createAtlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),

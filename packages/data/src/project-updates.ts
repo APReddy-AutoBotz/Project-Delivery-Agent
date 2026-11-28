@@ -21,11 +21,12 @@ import {
   atlasCommentCommandSchema, atlasCommentReceiptSchema, type AtlasCommentReceipt,
   atlasIntegrationMilestoneKey, atlasJiraBlockerKey, atlasJiraBlockerClaimText, atlasLeadershipAnswerSchema, atlasLeadershipFactsSchema,
   atlasScheduleCitationSchema, atlasSpreadsheetOrigin, atlasSpreadsheetRow, IngestionPersistenceError,
-  composeAtlasReceiptClaims,
+  composeAtlasDetailClaims, composeAtlasReceiptClaims,
   atlasManagementFactsSchema, atlasManagementSnapshotSchema, calendarDayDifference,
   atlasDelayAssessmentSchema, atlasDelayCommandSchema, atlasDelayClarificationCommandSchema,
   atlasDelayClarificationSchema, type AtlasApprovalView, type AtlasSchedule,
   isCurrentProjectScheduleQuestion, isProjectSnapshotComparisonQuestion, projectLeadershipAnswerSchema, projectLeadershipQuestionSchema,
+  composeLeadershipUpdateClaim, composeProjectLeadershipClaims,
   projectDelayClarificationCommandSchema, projectDelayClarificationSchema,
   projectDelayCauseFactType, projectDelayCauseEvidenceSchema, projectDelayCauseCommandSchema,
   projectDelayCauseConfirmationSchema, projectDelayClarificationReviewSchema, composeSettledLeadershipClaim,
@@ -2861,7 +2862,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
     const row = await this.latestAssessmentRow(tx, current, projectId, policy.policyRevisionId);
     if (!row) return null;
     const freshness = await this.readableUpdateFreshness(tx, current, projectId, row);
-    return freshness ? { assessmentId: row.id, obligationId: row.obligationId,
+    return freshness ? { assessmentId: row.id, obligationId: row.obligationId, policyRevisionId: row.policyRevisionId,
       freshness: { ...freshness, openObligation: row.obligationState === "OPEN" } } : null;
   }
 
@@ -2882,11 +2883,11 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
   private async atlasUpdateFreshness(tx: Tx, current: Actor, projectId: string) {
     const observed = await this.currentProjectFreshness(tx, current, projectId);
     if (!observed) return null;
-    const { assessmentId, freshness } = observed;
+    const { assessmentId, freshness, policyRevisionId } = observed;
     const obligationId = freshness.openObligation ? observed.obligationId ?? undefined : undefined;
     const activeClarification = freshness.state === "STALE" && obligationId
       ? await this.atlasActiveClarification(tx, current, projectId, obligationId) : undefined;
-    return { ...freshness, assessmentId, obligationId, activeClarification };
+    return { policyRevisionId, freshness: { ...freshness, assessmentId, obligationId, activeClarification } };
   }
 
   private async currentProjectLeadershipFacts(tx: Tx, current: Actor, projectId: string) {
@@ -2896,6 +2897,7 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       facts: { projectId, asOf: iso(await this.now(tx)), schedule,
         updateFreshness: observed ? { assessmentId: observed.assessmentId, ...observed.freshness } : null },
       obligationId: observed?.freshness.openObligation ? observed.obligationId ?? undefined : undefined,
+      updatePolicyRevisionId: observed?.policyRevisionId,
     };
   }
 
@@ -2918,9 +2920,13 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       }
       if (priorSnapshotId || !isCurrentProjectScheduleQuestion(parsed.data.question))
         return projectLeadershipAnswerSchema.parse({ state: "CLARIFY" });
-      const { facts: currentFacts, obligationId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
-      const facts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
+      const { facts: currentFacts, obligationId, updatePolicyRevisionId } = await this.currentProjectLeadershipFacts(tx, current, projectId);
+      const storedFacts = { ...currentFacts, updateFreshness: currentFacts.updateFreshness &&
         { ...currentFacts.updateFreshness, ...(obligationId && { obligationId }) } };
+      const scheduleReceipt = storedFacts.schedule && await tx.canonicalCreationReceipt.findFirst({
+        where: { customerId: current.customerId, projectId, operation: "PROJECT" }, select: { id: true },
+      });
+      const facts = { ...storedFacts, ...composeProjectLeadershipClaims(storedFacts, scheduleReceipt?.id, updatePolicyRevisionId) };
       const delayedSchedule = facts.schedule && (facts.schedule.movementDays ?? 0) > 0 ? facts.schedule : null;
       const delayCause = delayedSchedule &&
         await this.confirmedProjectDelayCause(tx, current, projectId, delayedSchedule, new Date(facts.asOf));
@@ -3602,7 +3608,8 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
       const prior = priorId ? await this.savedAtlasManagementSnapshot(tx, current.customerId, projectId, current.subject, priorId) : null;
       if (priorId && !prior) throw new ProjectUpdateError("DENIED");
       if (prior) await this.authorizeAtlasReportOrigin(tx, current, prior, "leadership");
-      const updateFreshness = await this.atlasUpdateFreshness(tx, current, projectId);
+      const observedUpdate = await this.atlasUpdateFreshness(tx, current, projectId);
+      const updateFreshness = observedUpdate?.freshness ?? null;
       const clarification = !answer.delayAssessment && answer.schedule && (answer.schedule.movementDays ?? 0) > 0
         ? await this.atlasDelayClarificationState(tx, current, projectId, answer.schedule, "leadership") : null;
       const delayClarificationState = !clarification ? undefined
@@ -3625,11 +3632,15 @@ export class DatabaseProjectUpdateRepository implements ProjectUpdateRepository 
         ? { classification: "AGENT_INFERENCE" as const, scheduleRevision: schedule.revision,
           milestoneId: integrationStart.milestoneId, blockerMappingId: blocker.mappingId } : undefined;
       const receiptClaims = composeAtlasReceiptClaims({ ...answer, asOf });
-      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, delayClarificationState,
+      const updateClaim = composeLeadershipUpdateClaim({ projectId, asOf }, updateFreshness, observedUpdate?.policyRevisionId);
+      const pmEscalation = escalation && escalation.availableUntil > asOf ? escalation : null;
+      const detailClaims = composeAtlasDetailClaims({ ...answer, asOf, updateFreshness, pmEscalation });
+      return atlasLeadershipAnswerSchema.parse({ ...answer, asOf, updateFreshness, updateClaim, delayClarificationState,
         ...(receiptClaims.length > 0 && { receiptClaims }),
+        ...(detailClaims.length > 0 && { detailClaims }),
         integrationStart, forecastInference,
         jiraBlocker: blocker,
-        pmEscalation: escalation && escalation.availableUntil > asOf ? escalation : null,
+        pmEscalation,
         priorSnapshot: prior ? { id: prior.id, facts: prior.facts } : undefined,
       });
     }, "ReadCommitted");

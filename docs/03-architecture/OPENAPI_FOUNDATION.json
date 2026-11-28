@@ -40143,6 +40143,86 @@
                       ],
                       "additionalProperties": false
                     },
+                    "updateClaim": {
+                      "nullable": true,
+                      "type": "object",
+                      "properties": {
+                        "projectId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "asOf": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "claimText": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 540
+                        },
+                        "provenance": {
+                          "type": "string",
+                          "enum": [
+                            "SYSTEM_VERIFIED"
+                          ]
+                        },
+                        "conflict": {
+                          "type": "string",
+                          "enum": [
+                            "NONE"
+                          ]
+                        },
+                        "policyRevisionId": {
+                          "type": "string",
+                          "format": "uuid",
+                          "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                        },
+                        "assessedAt": {
+                          "type": "string",
+                          "format": "date-time",
+                          "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                        },
+                        "evidenceIds": {
+                          "minItems": 1,
+                          "maxItems": 2,
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          }
+                        },
+                        "freshness": {
+                          "type": "string",
+                          "enum": [
+                            "CURRENT",
+                            "STALE"
+                          ]
+                        },
+                        "classification": {
+                          "type": "string",
+                          "enum": [
+                            "SYSTEM_VERIFIED",
+                            "STALE"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "projectId",
+                        "asOf",
+                        "claimText",
+                        "provenance",
+                        "conflict",
+                        "policyRevisionId",
+                        "assessedAt",
+                        "evidenceIds",
+                        "freshness",
+                        "classification"
+                      ],
+                      "additionalProperties": false
+                    },
                     "integrationStart": {
                       "nullable": true,
                       "type": "object",
@@ -40603,6 +40683,93 @@
                         "facts"
                       ],
                       "additionalProperties": false
+                    },
+                    "detailClaims": {
+                      "maxItems": 4,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "OWNER_ACCESS",
+                              "PM_COMMENT",
+                              "PM_ESCALATION",
+                              "UPDATE_CLARIFICATION"
+                            ]
+                          },
+                          "projectId": {
+                            "type": "string",
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                          },
+                          "asOf": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "validUntil": {
+                            "type": "string",
+                            "format": "date-time",
+                            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                          },
+                          "claimText": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 200
+                          },
+                          "evidenceIds": {
+                            "minItems": 1,
+                            "maxItems": 3,
+                            "type": "array",
+                            "items": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            }
+                          },
+                          "provenance": {
+                            "type": "string",
+                            "enum": [
+                              "SYSTEM_VERIFIED",
+                              "HUMAN_CONFIRMED"
+                            ]
+                          },
+                          "freshness": {
+                            "type": "string",
+                            "enum": [
+                              "CURRENT"
+                            ]
+                          },
+                          "conflict": {
+                            "type": "string",
+                            "enum": [
+                              "NONE"
+                            ]
+                          },
+                          "classification": {
+                            "type": "string",
+                            "enum": [
+                              "SYSTEM_VERIFIED",
+                              "HUMAN_CONFIRMED"
+                            ]
+                          }
+                        },
+                        "required": [
+                          "kind",
+                          "projectId",
+                          "asOf",
+                          "validUntil",
+                          "claimText",
+                          "evidenceIds",
+                          "provenance",
+                          "freshness",
+                          "conflict",
+                          "classification"
+                        ],
+                        "additionalProperties": false
+                      }
                     }
                   },
                   "required": [
@@ -41002,6 +41169,162 @@
                           ],
                           "additionalProperties": false
                         },
+                        "scheduleClaim": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "projectId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "asOf": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "claimText": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 540
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            },
+                            "conflict": {
+                              "type": "string",
+                              "enum": [
+                                "NONE"
+                              ]
+                            },
+                            "scheduleRevision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "evidenceIds": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                  }
+                                ]
+                              },
+                              "minItems": 1,
+                              "maxItems": 1
+                            },
+                            "freshness": {
+                              "type": "string",
+                              "enum": [
+                                "CURRENT"
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "projectId",
+                            "asOf",
+                            "claimText",
+                            "provenance",
+                            "conflict",
+                            "scheduleRevision",
+                            "evidenceIds",
+                            "freshness",
+                            "classification"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "updateClaim": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "projectId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "asOf": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "claimText": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 540
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            },
+                            "conflict": {
+                              "type": "string",
+                              "enum": [
+                                "NONE"
+                              ]
+                            },
+                            "policyRevisionId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "assessedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "evidenceIds": {
+                              "minItems": 1,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "freshness": {
+                              "type": "string",
+                              "enum": [
+                                "CURRENT",
+                                "STALE"
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED",
+                                "STALE"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "projectId",
+                            "asOf",
+                            "claimText",
+                            "provenance",
+                            "conflict",
+                            "policyRevisionId",
+                            "assessedAt",
+                            "evidenceIds",
+                            "freshness",
+                            "classification"
+                          ],
+                          "additionalProperties": false
+                        },
                         "state": {
                           "type": "string",
                           "enum": [
@@ -41076,6 +41399,8 @@
                         "asOf",
                         "schedule",
                         "updateFreshness",
+                        "scheduleClaim",
+                        "updateClaim",
                         "state",
                         "cause"
                       ],
@@ -41179,6 +41504,162 @@
                             "sourceDateField",
                             "assessmentId",
                             "openObligation"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "scheduleClaim": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "projectId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "asOf": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "claimText": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 540
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            },
+                            "conflict": {
+                              "type": "string",
+                              "enum": [
+                                "NONE"
+                              ]
+                            },
+                            "scheduleRevision": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 9007199254740991
+                            },
+                            "evidenceIds": {
+                              "type": "array",
+                              "items": {
+                                "anyOf": [
+                                  {
+                                    "type": "string",
+                                    "format": "uuid",
+                                    "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                                  }
+                                ]
+                              },
+                              "minItems": 1,
+                              "maxItems": 1
+                            },
+                            "freshness": {
+                              "type": "string",
+                              "enum": [
+                                "CURRENT"
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "projectId",
+                            "asOf",
+                            "claimText",
+                            "provenance",
+                            "conflict",
+                            "scheduleRevision",
+                            "evidenceIds",
+                            "freshness",
+                            "classification"
+                          ],
+                          "additionalProperties": false
+                        },
+                        "updateClaim": {
+                          "nullable": true,
+                          "type": "object",
+                          "properties": {
+                            "projectId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "asOf": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "claimText": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 540
+                            },
+                            "provenance": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED"
+                              ]
+                            },
+                            "conflict": {
+                              "type": "string",
+                              "enum": [
+                                "NONE"
+                              ]
+                            },
+                            "policyRevisionId": {
+                              "type": "string",
+                              "format": "uuid",
+                              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                            },
+                            "assessedAt": {
+                              "type": "string",
+                              "format": "date-time",
+                              "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d:[0-5]\\d(?:\\.\\d+)?(?:Z))$"
+                            },
+                            "evidenceIds": {
+                              "minItems": 1,
+                              "maxItems": 2,
+                              "type": "array",
+                              "items": {
+                                "type": "string",
+                                "format": "uuid",
+                                "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+                              }
+                            },
+                            "freshness": {
+                              "type": "string",
+                              "enum": [
+                                "CURRENT",
+                                "STALE"
+                              ]
+                            },
+                            "classification": {
+                              "type": "string",
+                              "enum": [
+                                "SYSTEM_VERIFIED",
+                                "STALE"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "projectId",
+                            "asOf",
+                            "claimText",
+                            "provenance",
+                            "conflict",
+                            "policyRevisionId",
+                            "assessedAt",
+                            "evidenceIds",
+                            "freshness",
+                            "classification"
                           ],
                           "additionalProperties": false
                         },
@@ -41371,6 +41852,8 @@
                         "asOf",
                         "schedule",
                         "updateFreshness",
+                        "scheduleClaim",
+                        "updateClaim",
                         "state",
                         "cause",
                         "delayCause"

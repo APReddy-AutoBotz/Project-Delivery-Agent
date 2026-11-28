@@ -80,13 +80,19 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const blocker = candidateBlocker && (candidateBlocker.claim.validUntil === null ||
     Date.parse(candidateBlocker.claim.validUntil) > Date.now()) ? candidateBlocker : null;
   const freshness = answer?.updateFreshness;
+  const updateClaim = answer?.updateClaim;
   const pending = freshness?.activeClarification;
   const clarification = pending && Date.parse(pending.availableUntil) > Date.now() ? pending : null;
   const escalation = reply && answer?.pmEscalation && Date.parse(answer.pmEscalation.availableUntil) > Date.now()
     ? answer.pmEscalation : null;
+  const detailClaims = answer?.detailClaims;
+  const replyClaim = reply && detailClaims?.find(({ kind }) => kind === "OWNER_ACCESS");
+  const commentClaim = receipt && detailClaims?.find(({ kind }) => kind === "PM_COMMENT");
+  const escalationClaim = escalation && detailClaims?.find(({ kind }) => kind === "PM_ESCALATION");
+  const clarificationClaim = clarification && detailClaims?.find(({ kind }) => kind === "UPDATE_CLARIFICATION");
   const prior = answer?.priorSnapshot;
   const scheduleRef = `atlas-schedule-${projectId}`;
-  const freshnessRef = `atlas-update-freshness-${projectId}`;
+  const freshnessRef = `atlas-update-freshness-${updateClaim?.evidenceIds[0]}`;
   const integrationRef = `atlas-integration-${projectId}`;
   const blockerRef = `atlas-blocker-${projectId}`;
   const escalationRef = `atlas-pm-escalation-${projectId}`;
@@ -134,21 +140,20 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
       <p>{movement} {schedule && <a href={`#${scheduleRef}`}>Schedule evidence</a>}</p>
-      {freshness && <p>The latest saved assessment marked the project update {freshness.state.toLowerCase()}.{" "}
-        {freshness.openObligation && "A project update remains due. "}
-        {clarification && `A clarification about the ${clarification.factType === "project.forecast" ? "forecast finish date" : "project status"} is open. `}
+      {updateClaim && <p>{updateClaim.claimText}{" "}
+        {clarificationClaim && `${clarificationClaim.claimText} `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
       {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
       {blocker && <p>{blocker.claim.claimText} <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
       {schedule && blocker && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
         {" "}<a href={`#${scheduleRef}`}>Schedule</a> · <a href={`#${integrationRef}`}>Integration start</a> · <a href={`#${blockerRef}`}>Open blocker</a>
       </p>}
-      {reply && <p>The owner confirmed API access was {reply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.{" "}
+      {replyClaim && <p>{replyClaim.claimText}{" "}
         <a href={`#${replyRef}`}>Reply evidence</a></p>}
-      {receipt && <p>The PM recorded a simulated comment for {receipt.target}.{" "}
+      {commentClaim && <p>{commentClaim.claimText}{" "}
         <a href={`#${receiptRef}`}>Receipt evidence</a></p>}
-      {escalation
-        ? <p>A simulated escalation was captured for the assigned PM. <a href={`#${escalationRef}`}>PM escalation evidence</a></p>
+      {escalationClaim
+        ? <p>{escalationClaim.claimText} <a href={`#${escalationRef}`}>PM escalation evidence</a></p>
         : <p>PM escalation evidence is unavailable.</p>}
       {(!reply || !receipt) && <p>Some reply or action evidence is unavailable for this answer.</p>}
       {pmClaim
@@ -176,10 +181,10 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
         {schedule && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
         </li>}
-        {freshness && <li id={freshnessRef} tabIndex={-1}>Update assessment {freshness.assessmentId}. Assessed at {freshness.assessedAt}.{" "}
+        {freshness && updateClaim && <li id={freshnessRef} tabIndex={-1}>Update assessment {updateClaim.evidenceIds[0]}. Assessed at {updateClaim.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
           at {freshness.sourceDate}.
-          {freshness.obligationId && ` Open update obligation ${freshness.obligationId}.`}
+          {updateClaim.evidenceIds[1] && ` Open update obligation ${updateClaim.evidenceIds[1]}.`}
           {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
         {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
         {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.

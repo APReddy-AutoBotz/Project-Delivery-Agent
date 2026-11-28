@@ -142,6 +142,41 @@ function validProjectLeadershipFacts(value: Record<string, unknown>, currentAnsw
 
 const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
 
+function matchesReadClaim(value: unknown, projectId: string, asOf: string): value is Record<string, unknown> {
+  return object(value) && value.projectId === projectId && value.asOf === asOf &&
+    value.provenance === "SYSTEM_VERIFIED" && value.conflict === "NONE";
+}
+
+const readClaimKeys = ["projectId", "asOf", "claimText", "provenance", "conflict", "evidenceIds", "freshness", "classification"];
+
+function validProjectLeadershipClaims(value: Record<string, unknown> & { asOf: string }, projectId: string) {
+  const { scheduleClaim, updateClaim, updateFreshness } = value;
+  if (scheduleClaim !== null) {
+    const schedule = decodeAtlasSchedule(value.schedule);
+    if (!schedule || !matchesReadClaim(scheduleClaim, projectId, value.asOf) ||
+        !keys(scheduleClaim, [...readClaimKeys, "scheduleRevision"]) || scheduleClaim.scheduleRevision !== schedule.revision ||
+        scheduleClaim.claimText !== atlasScheduleMovementText(schedule.movementDays) ||
+        scheduleClaim.freshness !== "CURRENT" || scheduleClaim.classification !== "SYSTEM_VERIFIED" ||
+        !dense(scheduleClaim.evidenceIds, 1, 1) || !uuid(scheduleClaim.evidenceIds[0])) return false;
+  }
+  return validLeadershipUpdateClaim(updateClaim, updateFreshness, projectId, value.asOf);
+}
+
+function validLeadershipUpdateClaim(updateClaim: unknown, updateFreshness: unknown, projectId: string, asOf: string) {
+  if (updateFreshness === null) return updateClaim === null;
+  if (!object(updateFreshness) || !matchesReadClaim(updateClaim, projectId, asOf) ||
+      !keys(updateClaim, [...readClaimKeys, "policyRevisionId", "assessedAt"]) || !uuid(updateClaim.policyRevisionId)) return false;
+  const stale = updateFreshness.state === "STALE";
+  const expectedText = `The latest saved assessment found the project ${stale ? "stale" : "current"} under its update policy.`
+    + (updateFreshness.openObligation ? " A project update remains due." : "");
+  const evidence = updateClaim.evidenceIds;
+  const length = updateFreshness.openObligation ? 2 : 1;
+  return updateClaim.claimText === expectedText && updateClaim.assessedAt === updateFreshness.assessedAt &&
+    updateClaim.freshness === updateFreshness.state && updateClaim.classification === (stale ? "STALE" : "SYSTEM_VERIFIED") &&
+    dense(evidence, length, length) && evidence[0] === updateFreshness.assessmentId &&
+    (length === 1 || (evidence[1] === updateFreshness.obligationId && evidence[1] !== evidence[0]));
+}
+
 function matchesSettledClaim(value: unknown, projectId: string, asOf: string, provenance: "SYSTEM_VERIFIED" | "HUMAN_CONFIRMED", text: string) {
   return object(value) && keys(value, ["claimText", "projectId", "factId", "versionId", "evidenceIds", "policyRevisionId",
     "assessedAt", "validUntil", "provenance", "freshness", "conflict", "classification"]) &&
@@ -157,7 +192,9 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
   if (value.state === "CLARIFY" && keys(value, ["state"])) return { state: "CLARIFY" };
   if (value.projectId !== projectId || !validProjectLeadershipFacts(value, value.state === "ANSWERED")) return null;
   const required = ["state", "projectId", ...leadershipFactKeys];
-  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, [...required, "cause"], ["pendingDelayClarification"])) {
+  const currentRequired = [...required, "cause", "scheduleClaim", "updateClaim"];
+  if (value.state === "ANSWERED" && !validProjectLeadershipClaims(value, projectId)) return null;
+  if (value.state === "ANSWERED" && value.cause === "UNKNOWN" && keys(value, currentRequired, ["pendingDelayClarification"])) {
     if (value.pendingDelayClarification !== undefined) {
       const pending = decodeProjectDelayClarification(value.pendingDelayClarification);
       const schedule = decodeAtlasSchedule(value.schedule);
@@ -167,7 +204,7 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
     return value as ProjectLeadershipAnswer;
   }
   const delay = value.delayCause;
-  if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...required, "cause", "delayCause"]) &&
+  if (value.state === "ANSWERED" && value.cause === "HUMAN_CONFIRMED" && keys(value, [...currentRequired, "delayCause"]) &&
       object(delay) && keys(delay, ["evidence", "confirmation", "claim"])) {
     const evidence = decodeProjectDelayCauseEvidence(delay.evidence);
     const confirmation = decodeProjectDelayCauseConfirmation(delay.confirmation);
@@ -327,10 +364,48 @@ function matchesAtlasReceiptClaims(value: unknown, answer: AtlasLeadershipFacts)
   return claims.length === expected;
 }
 
+function matchesAtlasDetailClaims(detailClaims: unknown, answer: AtlasLeadershipAnswer) {
+  const { ownerReply, receipt, pmEscalation, updateFreshness } = answer;
+  const claims = detailClaims === undefined ? [] : detailClaims;
+  if (!Array.isArray(claims) || !dense(claims, claims.length, 4)) return false;
+  const entries: unknown[] = claims;
+  let index = 0;
+  function matches(kind: string, text: string, evidenceIds: string[], validUntil: string, provenance = "SYSTEM_VERIFIED") {
+    if (Date.parse(validUntil) <= Date.parse(answer.asOf)) return true;
+    const claim = entries[index++];
+    if (!object(claim)) return false;
+    const evidence = claim.evidenceIds;
+    return keys(claim,
+      ["kind", "projectId", "asOf", "validUntil", "claimText", "evidenceIds", "provenance", "freshness", "conflict", "classification"]) &&
+      claim.kind === kind && claim.projectId === answer.projectId && claim.asOf === answer.asOf &&
+      claim.validUntil === validUntil && claim.claimText === text && claim.provenance === provenance &&
+      claim.classification === provenance && claim.freshness === "CURRENT" && claim.conflict === "NONE" &&
+      dense(evidence, evidenceIds.length, evidenceIds.length) && evidenceIds.every((id, i) => id === evidence[i]);
+  }
+  if (ownerReply) {
+    if (!matches("OWNER_ACCESS",
+      `The owner confirmed API access was ${ownerReply.accessStatus === "ACCESS_PENDING" ? "pending" : "restored"} at the time of the reply.`,
+      [ownerReply.responseId], ownerReply.availableUntil, "HUMAN_CONFIRMED")) return false;
+    if (receipt && !matches("PM_COMMENT", `The PM recorded a simulated comment for ${receipt.target}.`, [receipt.id], ownerReply.availableUntil))
+      return false;
+    if (pmEscalation && !matches("PM_ESCALATION", "A simulated escalation was captured for the assigned PM.",
+      [pmEscalation.requestId], Date.parse(pmEscalation.availableUntil) < Date.parse(ownerReply.availableUntil)
+        ? pmEscalation.availableUntil : ownerReply.availableUntil)) return false;
+  }
+  const clarification = updateFreshness?.activeClarification;
+  if (clarification && updateFreshness?.obligationId) {
+    const fact = clarification.factType === "project.forecast" ? "forecast finish date" : "project status";
+    if (!matches("UPDATE_CLARIFICATION", `A clarification about the ${fact} is open.`,
+      [clarification.clarificationId, updateFreshness.assessmentId, updateFreshness.obligationId], clarification.availableUntil))
+      return false;
+  }
+  return index === entries.length;
+}
+
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
   const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot,
-    updateFreshness, delayClarificationState, receiptClaims, ...facts } = value;
+    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer || !matchesAtlasReceiptClaims(receiptClaims, answer)) return null;
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
@@ -345,6 +420,7 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       Date.parse(updateFreshness.assessedAt) > Date.parse(answer.asOf) ||
       typeof updateFreshness.openObligation !== "boolean" ||
       (updateFreshness.openObligation ? !uuid(updateFreshness.obligationId) : updateFreshness.obligationId !== undefined))) return null;
+  if (!validLeadershipUpdateClaim(updateClaim ?? null, updateFreshness ?? null, projectId, answer.asOf)) return null;
   const clarification = object(updateFreshness) ? updateFreshness.activeClarification : undefined;
   if (clarification !== undefined && (!object(updateFreshness) || updateFreshness.state !== "STALE" || !updateFreshness.openObligation ||
       !object(clarification) || !keys(clarification, ["clarificationId", "factType", "requestedAt", "availableUntil"]) ||
@@ -377,7 +453,8 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
         Date.parse(prior.ownerReply.availableUntil) <= Date.parse(answer.asOf) ||
         (prior.scheduleCitation && prior.scheduleCitation.availableUntil <= answer.asOf)) return null;
   }
-  return value as AtlasLeadershipAnswer;
+  const leadership = value as AtlasLeadershipAnswer;
+  return matchesAtlasDetailClaims(detailClaims, leadership) ? leadership : null;
 }
 
 export function decodeAtlasManagementPreview(value: unknown, projectId: string): AtlasManagementPreview | null {

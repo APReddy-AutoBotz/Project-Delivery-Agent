@@ -85,3 +85,31 @@ The normal selected-project answer also cites the exact ID of the open
 update obligation in its existing assessment evidence. It uses the same
 source-authorized read as Atlas. Saved reports and comparison responses
 retain their existing evidence shape.
+
+## Selected-project schedule and assessment claims
+
+The live answer builds and validates exact wording for the schedule movement
+and saved update assessment. The sealed schedule cites its creation receipt
+and revision. The update assessment cites the saved assessment, its policy
+revision and the open obligation when present. A stale assessment keeps its
+stale label. The browser validates the claim text, scope, as-of time and
+citations against the authorized response before rendering. The existing
+native and browser cases verify the persisted references and the decoder
+rejects unsupported wording. This extends STORY-028 and AC-QA-002.
+Apply or revert the API and browser together.
+
+The Atlas live answer uses the same assessment claim and cites the saved
+assessment, its policy revision and the open obligation when present. If
+source access is withdrawn, the API withholds the freshness data and its claim
+together. The existing Atlas browser case verifies the wording, references
+and withdrawal. The decoder also rejects unsupported text and mismatched IDs.
+
+## Atlas reply, action and clarification claims
+
+Render the owner reply, simulated comment, simulated escalation and open
+update clarification from validated claims. Cite the authorized response,
+action receipt, captured request or clarification and assessment records
+already loaded for the answer. Keep the existing retention deadlines and
+withhold a statement when its supporting record is unavailable. The existing
+Atlas journey checks the exact records. The decoder cases exercise altered
+wording and extended deadlines. Apply or revert the API and browser together.

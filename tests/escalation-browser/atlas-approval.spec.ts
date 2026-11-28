@@ -164,6 +164,13 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     obligation: { state: "OPEN" },
     completeness: { state: "COMPLETE" },
   });
+  expect(before.updateClaim).toMatchObject({
+    claimText: "The latest saved assessment found the project stale under its update policy. A project update remains due.",
+    projectId: fixture.projectId, asOf: before.asOf, assessedAt: before.updateFreshness.assessedAt,
+    evidenceIds: [before.updateFreshness.assessmentId, authorizedUpdate.obligation.id],
+    policyRevisionId: expect.any(String), provenance: "SYSTEM_VERIFIED", classification: "STALE",
+    freshness: "STALE", conflict: "NONE",
+  });
   expect(authorizedUpdate.knownPosition).toHaveLength(2);
   expect(authorizedUpdate.knownPosition).toEqual(expect.arrayContaining([expect.objectContaining({
     factType: "project.status", authorityRevision: 2, sourceId: fixture.sourceB.sourceId,
@@ -191,9 +198,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     const restrictedFreshness = await request.get(answerPath, { headers: leaderHeaders });
     expect(restrictedFreshness.status()).toBe(200);
     const restrictedAnswer = await restrictedFreshness.json();
-    expect(restrictedAnswer).toMatchObject({ updateFreshness: null, jiraBlocker: {
+    expect(restrictedAnswer).toMatchObject({ updateFreshness: null, updateClaim: null, jiraBlocker: {
       ...before.jiraBlocker, claim: { ...before.jiraBlocker.claim, assessedAt: restrictedAnswer.asOf },
     } });
+    expect(restrictedAnswer.detailClaims ?? []).not.toContainEqual(expect.objectContaining({ kind: "UPDATE_CLARIFICATION" }));
     expect((await request.get(protectedSnapshotPath, { headers: leaderHeaders })).status()).toBe(404);
     expect((await request.post(projectPath + "/leadership-answer", protectedComparison)).status()).toBe(404);
     const fallback = await request.get(protectedReportPath, { headers: leaderHeaders });
@@ -410,7 +418,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const answer = page.getByRole("region", { name: "Atlas leadership answer" });
   await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
   await expect(answer).toContainText("14 days later");
-  await expect(answer).toContainText("The latest saved assessment marked the project update stale.");
+  await expect(answer).toContainText("The latest saved assessment found the project stale under its update policy.");
   await expect(answer).toContainText("A clarification about the forecast finish date is open.");
   await expect(answer).toContainText("A project update remains due.");
   await expect(answer).toContainText("Integration testing started late.");
@@ -455,6 +463,14 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     assessmentId: assessment.id, scheduleRevision: complete.schedule.revision,
     claimText: "The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as medium.",
   }));
+  expect(complete.detailClaims).toEqual([
+    expect.objectContaining({ kind: "OWNER_ACCESS", evidenceIds: [complete.ownerReply.responseId],
+      provenance: "HUMAN_CONFIRMED", validUntil: complete.ownerReply.availableUntil }),
+    expect.objectContaining({ kind: "PM_COMMENT", evidenceIds: [receipt.id], provenance: "SYSTEM_VERIFIED" }),
+    expect.objectContaining({ kind: "PM_ESCALATION", evidenceIds: [fixture.escalation.requestId] }),
+    expect.objectContaining({ kind: "UPDATE_CLARIFICATION", evidenceIds: [complete.updateFreshness.activeClarification.clarificationId,
+      complete.updateClaim.evidenceIds[0], authorizedUpdate.obligation.id] }),
+  ]);
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
   expect(JSON.stringify(complete)).not.toContain(editedComment);

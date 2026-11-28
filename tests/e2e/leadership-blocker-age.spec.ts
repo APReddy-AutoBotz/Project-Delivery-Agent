@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue, type BlockerAgeAdvice } from "../../packages/domain/dist/index.js";
+import { atlasApprovalProjectCode, buildBlockerAgeAdvice, buildPmActionQueue, composeProjectLeadershipClaims, type BlockerAgeAdvice } from "../../packages/domain/dist/index.js";
 
 const customerId = "10000000-0000-4000-8000-000000000001";
 const id = (number: number) => `30000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
@@ -46,9 +46,10 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
       const updateFreshness = causeReads === 0 ? {
         state: "STALE", assessedAt: checkedAt, sourceDate: asOf, sourceDateField: "project.latestValidUpdateAt",
         assessmentId: id(76), openObligation: true, obligationId: id(77),
-      } : null;
-      const facts = { state: "ANSWERED", projectId: id(1), asOf: checkedAt, updateFreshness,
+      } as const : null;
+      const observed = { state: "ANSWERED", projectId: id(1), asOf: checkedAt, updateFreshness,
         schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 } };
+      const facts = { ...observed, ...composeProjectLeadershipClaims(observed, id(78), id(79)) };
       if (++causeReads > 1) return route.fulfill({ json: { ...facts, cause: "UNKNOWN" } });
       const value = "Confirmed integration delay";
       return route.fulfill({ json: { ...facts, cause: "HUMAN_CONFIRMED", delayCause: {
@@ -63,10 +64,14 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
     if (path === `/projects/${atlas.id}/atlas-leadership-answer`) {
       const now = Date.now();
       const checkedAt = new Date(now).toISOString();
+      const replyExpiry = new Date(now + 5000).toISOString();
       const facts = { projectId: atlas.id, asOf: checkedAt,
         schedule: { revision: 1, baseline: "2026-10-17", forecast: "2026-10-21", movementDays: 4 },
-        ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: new Date(now + 5000).toISOString(),
+        ownerReply: { responseId: id(80), receivedAt: checkedAt, availableUntil: replyExpiry,
           accessStatus: "ACCESS_PENDING" }, receipt: null, delayAssessment: null, pmEscalation: null,
+        detailClaims: [{ kind: "OWNER_ACCESS", projectId: atlas.id, asOf: checkedAt, validUntil: replyExpiry,
+          claimText: "The owner confirmed API access was pending at the time of the reply.", evidenceIds: [id(80)],
+          provenance: "HUMAN_CONFIRMED", freshness: "CURRENT", conflict: "NONE", classification: "HUMAN_CONFIRMED" }],
         integrationStart: { milestoneId: id(81), planned: "2026-10-12", actual: "2026-10-13" } };
       if (++atlasReads > 1) return route.fulfill({ json: { ...facts, jiraBlocker: null } });
       return route.fulfill({ json: { ...facts, jiraBlocker: { mappingId: id(82), issueKey: "ATLAS-248",
@@ -103,6 +108,8 @@ test("EXEC-027 / AC-QA-002: leadership hides expired, denied and late evidence a
   await answer.getByLabel("Project question").fill("Why is this project delayed?");
   await answer.getByRole("button", { name: "Ask", exact: true }).click();
   await expect(answer.getByRole("link", { name: "Cause evidence" })).toBeVisible();
+  await expect(answer).toContainText("The forecast is 4 days later than the baseline.");
+  await expect(answer.locator(`#project-answer-schedule-${id(1)}`)).toContainText(`Creation receipt ${id(78)}.`);
   await expect(answer.locator(`#project-answer-update-${id(1)}`)).toContainText(`Open update obligation ${id(77)}.`);
   await page.clock.fastForward(16000);
   await expect(answer).toContainText("The cause of the delay is unknown.");
