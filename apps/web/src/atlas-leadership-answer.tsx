@@ -1,38 +1,23 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import type { AtlasLeadershipAnswer as Answer, AtlasLeadershipFacts } from "@pdaa/domain";
+import type { AtlasLeadershipAnswer as Answer } from "@pdaa/domain";
 import { Button, Message } from "./components.js";
 import { atlasScheduleMovementText, decodeAtlasDelayClarification, decodeAtlasLeadershipAnswer } from "./project-update-invitation-decoder.js";
 import type { RequestFn } from "./request-types.js";
 import { AtlasManagementSnapshot } from "./atlas-management-snapshot.js";
 import { delayClarificationQuestion } from "./project-delay-clarification.js";
+import { LeadershipComparisonTable } from "./leadership-comparison-table.js";
 
 const snapshotIdFormat = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/u;
 
-function AtlasSnapshotChanges({ current, prior }: { current: AtlasLeadershipFacts; prior: NonNullable<Answer["priorSnapshot"]> }) {
+function AtlasSnapshotChanges({ current, prior }: {
+  current: Pick<Answer, "asOf" | "comparisonClaims">; prior: NonNullable<Answer["priorSnapshot"]>;
+}) {
   const previous = prior.facts;
-  const access = (facts: AtlasLeadershipFacts) => facts.ownerReply?.accessStatus === "ACCESS_PENDING" ? "Pending"
-    : facts.ownerReply?.accessStatus === "ACCESS_RESTORED" ? "Restored" : "Unavailable";
-  const action = (facts: AtlasLeadershipFacts) => facts.receipt ? `Fixture revision ${facts.receipt.fixtureRevision}` : "Unavailable";
-  const cause = (facts: AtlasLeadershipFacts) => facts.delayAssessment ? "API access delay" : "Unknown";
-  const confidence = (facts: AtlasLeadershipFacts) => facts.delayAssessment?.confidence.toLowerCase() ?? "unknown";
-  const changes = [
-    ["Baseline date", previous.schedule?.baseline, current.schedule?.baseline],
-    ["Forecast date", previous.schedule?.forecast, current.schedule?.forecast],
-    ["Owner-confirmed API access", access(previous), access(current)],
-    ["Simulated Jira action", action(previous), action(current)],
-    ["PM-confirmed cause", cause(previous), cause(current)],
-    ["PM forecast confidence", confidence(previous), confidence(current)],
-  ].filter(([, before, after]) => (before ?? null) !== (after ?? null));
   return <section aria-label="Changes since the saved snapshot">
     <h3>Changes since the saved snapshot</h3>
     <p>Prior snapshot {prior.id} at {previous.asOf}. Current evidence checked at {current.asOf}.</p>
-    {changes.length ? <table>
-      <thead><tr><th scope="col">Fact</th><th scope="col">Saved snapshot</th><th scope="col">Current</th></tr></thead>
-      <tbody>{changes.map(([label, before, after]) => <tr key={label}>
-        <th scope="row">{label}</th><td>{before ?? "Unavailable"}</td><td>{after ?? "Unavailable"}</td>
-      </tr>)}</tbody>
-    </table> : <p>No changes to the compared fields.</p>}
+    <LeadershipComparisonTable claims={current.comparisonClaims ?? []} emptyMessage="No changes to the compared fields." />
     <p>Prior evidence includes schedule revision {previous.schedule?.revision}, owner reply {previous.ownerReply?.responseId}
       {" "}and comment receipt {previous.receipt?.id}{previous.delayAssessment ? `, with PM assessment ${previous.delayAssessment.id}` : ""}.</p>
   </section>;
@@ -178,8 +163,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       </details>}
       {prior?.facts.ownerReply && Date.parse(prior.facts.ownerReply.availableUntil) > Date.now() &&
         (!prior.facts.scheduleCitation || Date.parse(prior.facts.scheduleCitation.availableUntil) > Date.now()) &&
-        <AtlasSnapshotChanges current={{ ...answer, schedule: schedule ?? null, ownerReply: reply, receipt: receipt ?? null,
-          delayAssessment: assessment ?? null }} prior={prior} />}
+        <AtlasSnapshotChanges current={answer} prior={prior} />}
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>

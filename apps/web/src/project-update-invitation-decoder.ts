@@ -1,4 +1,4 @@
-import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, ProjectDelayCauseConfirmation, ProjectDelayCauseEvidence, ProjectDelayClarification, ProjectDelayClarificationReview, ProjectLeadershipAnswer, ProjectManagementDraftOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
+import type { atlasCommentLimit, AtlasApprovalView, AtlasCommentReceipt, AtlasDelayAssessment, AtlasLeadershipAnswer, AtlasLeadershipFacts, AtlasManagementOutput, AtlasManagementPreview, AtlasReportDistributionReceipt, AtlasSchedule, LeadershipComparisonField, ProjectDelayCauseConfirmation, ProjectDelayCauseEvidence, ProjectDelayClarification, ProjectDelayClarificationReview, ProjectLeadershipAnswer, ProjectLeadershipFacts, ProjectManagementDraftOutput, ProjectUpdateRecipientRequestView, ProjectUpdateResponseReceipt } from "@pdaa/domain";
 
 const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" && !Array.isArray(value);
 const keys = (value: Record<string, unknown>, required: readonly string[], optional: readonly string[] = []) => {
@@ -142,6 +142,39 @@ function validProjectLeadershipFacts(value: Record<string, unknown>, currentAnsw
 
 const leadershipFactKeys = ["asOf", "schedule", "updateFreshness"];
 
+function matchesComparisonClaims(claims: unknown, projectId: string, asOf: string, priorSnapshotId: string,
+  fields: readonly LeadershipComparisonField[]) {
+  const expected = fields.filter(([, before, after, , , until]) => before !== after && (!until || Date.parse(until) > Date.parse(asOf)));
+  return dense(claims, expected.length, expected.length) && expected.every(([field, before, after, priorEvidence, currentEvidence, validUntil = null], index) => {
+    const claim = claims[index];
+    if (!matchesReadClaim(claim, projectId, asOf) || !keys(claim,
+      [...readClaimKeys, "priorSnapshotId", "field", "before", "after", "validUntil"])) return false;
+    const evidence = claim.evidenceIds;
+    const ids = [...new Set([priorSnapshotId, ...(priorEvidence ? [priorEvidence] : []), ...(currentEvidence ? [currentEvidence] : [])])];
+    return claim.priorSnapshotId === priorSnapshotId && claim.field === field && claim.before === before && claim.after === after &&
+      claim.validUntil === validUntil && claim.classification === "SYSTEM_VERIFIED" && claim.freshness === "CURRENT" &&
+      claim.claimText === `${field} changed from ${before ?? "Unavailable"} to ${after ?? "Unavailable"}.` &&
+      dense(evidence, ids.length, ids.length) && ids.every((id, i) => id === evidence[i]);
+  });
+}
+
+function validProjectComparison(answer: Extract<ProjectLeadershipAnswer, { state: "COMPARISON" }>) {
+  const { priorSnapshot: prior, currentScheduleReceiptId, currentObligationId, updateFreshness: current } = answer;
+  const saved = prior.updateFreshness;
+  const schedule = currentScheduleReceiptId ? answer.schedule : null;
+  const source = (update: ProjectLeadershipFacts["updateFreshness"]) => update
+    ? `${update.sourceDateField === "project.createdAt" ? "Project created" : "Latest verified update"} at ${update.sourceDate}` : null;
+  const obligation = (update: ProjectLeadershipFacts["updateFreshness"]) => update
+    ? update.openObligation ? "Update due" : "No update due" : null;
+  return matchesComparisonClaims(answer.comparisonClaims, answer.projectId, answer.asOf, prior.id, [
+    ["Baseline date", prior.schedule?.baseline ?? null, schedule?.baseline ?? null, undefined, currentScheduleReceiptId],
+    ["Forecast date", prior.schedule?.forecast ?? null, schedule?.forecast ?? null, undefined, currentScheduleReceiptId],
+    ["Update freshness", saved?.state.toLowerCase() ?? null, current?.state.toLowerCase() ?? null, saved?.assessmentId, current?.assessmentId],
+    ["Update source", source(saved), source(current), saved?.assessmentId, current?.assessmentId],
+    ["Update obligation", obligation(saved), obligation(current), saved?.assessmentId, currentObligationId ?? current?.assessmentId],
+  ]);
+}
+
 function matchesReadClaim(value: unknown, projectId: string, asOf: string): value is Record<string, unknown> {
   return object(value) && value.projectId === projectId && value.asOf === asOf &&
     value.provenance === "SYSTEM_VERIFIED" && value.conflict === "NONE";
@@ -218,10 +251,15 @@ export function decodeProjectLeadershipAnswer(value: unknown, projectId: string)
       Date.parse(confirmation.confirmedAt) <= Date.parse(value.asOf) ? value as ProjectLeadershipAnswer : null;
   }
   const prior = value.priorSnapshot;
-  if (value.state !== "COMPARISON" || !keys(value, [...required, "priorSnapshot"]) || !object(prior) ||
+  if (value.state !== "COMPARISON" || !keys(value, [...required, "priorSnapshot", "comparisonClaims"],
+      ["currentScheduleReceiptId", "currentObligationId"]) || !object(prior) ||
       !keys(prior, ["id", ...leadershipFactKeys]) || !uuid(prior.id) || !validProjectLeadershipFacts(prior) ||
-      Date.parse(prior.asOf) > Date.parse(value.asOf)) return null;
-  return value as ProjectLeadershipAnswer;
+      Date.parse(prior.asOf) > Date.parse(value.asOf) ||
+      (value.currentScheduleReceiptId !== undefined && (!value.schedule || !uuid(value.currentScheduleReceiptId))) ||
+      (object(value.updateFreshness) && value.updateFreshness.openObligation
+        ? !uuid(value.currentObligationId) : value.currentObligationId !== undefined)) return null;
+  const comparison = value as Extract<ProjectLeadershipAnswer, { state: "COMPARISON" }>;
+  return validProjectComparison(comparison) ? comparison : null;
 }
 
 export function decodeProjectDelayClarification(value: unknown): ProjectDelayClarification | null {
@@ -423,7 +461,7 @@ function matchesAtlasDetailClaims(detailClaims: unknown, answer: AtlasLeadership
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
   const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot,
-    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, canonicalCreationReceiptId, ...facts } = value;
+    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, canonicalCreationReceiptId, comparisonClaims, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer || !matchesAtlasReceiptClaims(receiptClaims, answer)) return null;
   if (canonicalCreationReceiptId !== undefined && (!uuid(canonicalCreationReceiptId) ||
@@ -474,7 +512,33 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
         (prior.scheduleCitation && prior.scheduleCitation.availableUntil <= answer.asOf)) return null;
   }
   const leadership = value as AtlasLeadershipAnswer;
-  return matchesAtlasDetailClaims(detailClaims, leadership) ? leadership : null;
+  return matchesAtlasDetailClaims(detailClaims, leadership) && validAtlasComparison(comparisonClaims, leadership) ? leadership : null;
+}
+
+function validAtlasComparison(claims: unknown, answer: AtlasLeadershipAnswer) {
+  if (!answer.priorSnapshot) return claims === undefined;
+  const { id, facts: saved } = answer.priorSnapshot;
+  const proof = answer.schedule ? answer.scheduleCitation?.receiptId ?? answer.canonicalCreationReceiptId : undefined;
+  const schedule = proof ? answer.schedule : null;
+  const deadline = (previous?: string, current?: string) =>
+    previous && current ? (Date.parse(previous) <= Date.parse(current) ? previous : current) : previous ?? current ?? null;
+  const scheduleDeadline = deadline(saved.scheduleCitation?.availableUntil, answer.scheduleCitation?.availableUntil);
+  const replyDeadline = deadline(saved.ownerReply?.availableUntil, answer.ownerReply?.availableUntil);
+  const assessmentDeadline = deadline(scheduleDeadline ?? undefined, replyDeadline ?? undefined);
+  const ownerAccess = (reply: AtlasLeadershipFacts["ownerReply"]) => reply
+    ? reply.accessStatus === "ACCESS_PENDING" ? "Pending" : "Restored" : null;
+  const action = (receipt: AtlasLeadershipFacts["receipt"]) => receipt ? `Fixture revision ${receipt.fixtureRevision}` : null;
+  return matchesComparisonClaims(claims, answer.projectId, answer.asOf, id, [
+    ["Baseline date", saved.schedule?.baseline ?? null, schedule?.baseline ?? null, saved.scheduleCitation?.receiptId, proof, scheduleDeadline],
+    ["Forecast date", saved.schedule?.forecast ?? null, schedule?.forecast ?? null, saved.scheduleCitation?.receiptId, proof, scheduleDeadline],
+    ["Owner-confirmed API access", ownerAccess(saved.ownerReply), ownerAccess(answer.ownerReply),
+      saved.ownerReply?.responseId, answer.ownerReply?.responseId, replyDeadline],
+    ["Simulated Jira action", action(saved.receipt), action(answer.receipt), saved.receipt?.id, answer.receipt?.id, replyDeadline],
+    ["PM-confirmed cause", saved.delayAssessment ? "API access delay" : "Unknown", answer.delayAssessment ? "API access delay" : "Unknown",
+      saved.delayAssessment?.id, answer.delayAssessment?.id, assessmentDeadline],
+    ["PM forecast confidence", saved.delayAssessment?.confidence.toLowerCase() ?? "unknown", answer.delayAssessment?.confidence.toLowerCase() ?? "unknown",
+      saved.delayAssessment?.id, answer.delayAssessment?.id, assessmentDeadline],
+  ]);
 }
 
 export function decodeAtlasManagementPreview(value: unknown, projectId: string): AtlasManagementPreview | null {
