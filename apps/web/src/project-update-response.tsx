@@ -25,31 +25,32 @@ const invitationWrites = new CanonicalCreationWriteRegistry();
 
 function EscalationHistory({ context }: { context: ProjectUpdateEscalationContext }) {
   const [expiryVersion, setExpiryVersion] = useState(0);
+  const renderedAt = Date.now();
   const impact = context.impact === "UNKNOWN" ? null : context.impact;
-  const impactDeadline = impact?.citation?.availableUntil;
+  const impactDeadline = impact?.citation ? Date.parse(impact.citation.availableUntil) : null;
+  const visibleImpact = impact && (impactDeadline === null || impactDeadline > renderedAt) ? impact : null;
+  const deadlines = context.entries.filter((entry) => entry.contentState === "PRESENT")
+    .map((entry) => Date.parse(entry.contentExpiresAt)).filter((deadline) => deadline > renderedAt);
+  if (visibleImpact && impactDeadline !== null) deadlines.push(impactDeadline);
+  const nextExpiry = deadlines.length ? Math.min(...deadlines) : null;
   useEffect(() => {
-    const now = Date.now();
-    const deadlines = context.entries.filter((entry) => entry.contentState === "PRESENT")
-      .map((entry) => Date.parse(entry.contentExpiresAt)).filter((deadline) => deadline > now);
-    if (impactDeadline && Date.parse(impactDeadline) > now) deadlines.push(Date.parse(impactDeadline));
-    if (!deadlines.length) return;
+    if (nextExpiry === null) return;
     const timer = window.setTimeout(() => setExpiryVersion((version) => version + 1),
-      Math.min(2147483647, Math.max(1, Math.min(...deadlines) - now)));
+      Math.min(2147483647, Math.max(0, nextExpiry - Date.now())));
     return () => window.clearTimeout(timer);
-  }, [context, impactDeadline, expiryVersion]);
-  const visibleImpact = impact && (!impactDeadline || Date.parse(impactDeadline) > Date.now()) ? impact : null;
+  }, [nextExpiry, expiryVersion]);
   return <section aria-label="Escalation request history">
     <h3>Current-cycle request history</h3>
     <p>Read as of {context.asOf}. Historical request text is not a current confirmed fact.
       Reviewer names are withheld in this history view.</p>
-    {!visibleImpact ? <p>Delivery impact is unknown.</p> : <p>
+    {!visibleImpact ? <p>Delivery impact: unknown. Confirmation belongs to the existing update workflow.</p> : <p>
       Saved baseline {visibleImpact.baseline}. Saved forecast {visibleImpact.forecast}.{" "}
       {atlasScheduleMovementText(visibleImpact.movementDays)} Schedule revision {visibleImpact.revision}.
       {visibleImpact.citation && ` Reviewed CSV receipt ${visibleImpact.citation.receiptId}.`}
     </p>}
     {context.state === "UNAVAILABLE" ? <p>Request history is currently unavailable.</p> :
       <ol>{context.entries.map((entry) => {
-        const expired = entry.contentState === "EXPIRED" || Date.parse(entry.contentExpiresAt) <= Date.now();
+        const expired = entry.contentState === "EXPIRED" || Date.parse(entry.contentExpiresAt) <= renderedAt;
         return <li key={entry.requestId}>
           <strong>{entry.stageKind === "REQUEST" ? "Original recorded request"
             : entry.stageKind === "REMINDER" ? "Recorded reminder" : "Recorded owner escalation"}</strong>
