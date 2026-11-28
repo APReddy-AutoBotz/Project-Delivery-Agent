@@ -58,8 +58,8 @@ and verified merge.
 
 The normal project evidence is from the verified PR #238 merge `b2b0e59f`.
 The snapshot uses existing append-only audit storage. Recovery retains those
-records if the application route is reverted. Portfolio dashboards, report
-content and customer release gates remain open under their existing decisions.
+records if the application route is reverted. The [project and portfolio views
+acceptance](#project-and-portfolio-views-acceptance) records the dashboard evidence.
 [Main Foundation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298558) ·
 [Main Documentation](https://github.com/APReddy-AutoBotz/Project-Delivery-Agent/actions/runs/45988298547)
 
@@ -68,7 +68,7 @@ content and customer release gates remain open under their existing decisions.
 STORY-032 covers editable selected-project PowerPoint reports and the related
 metadata and accessibility criteria. This acceptance takes effect after the
 record passes independent review and required hosted checks and merges.
-Portfolio dashboards and customer release approval remain open.
+Customer release approval follows the [release plan](../04-delivery/RELEASE-1-VERTICAL-SLICE.md).
 
 | Criterion | Executed evidence |
 | --- | --- |
