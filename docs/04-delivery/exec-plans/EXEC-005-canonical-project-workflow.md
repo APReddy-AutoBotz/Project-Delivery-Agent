@@ -89,6 +89,13 @@ HTTP responses and their bodies. The three-second dashboard target applies to
 the slowest reader. AC-PERF-001 also requires scheduled synchronization and
 report generation during the timed reads.
 
+The combined rehearsal runs dashboard reads in a separate API process and
+sends scheduled tasks to a private instance of the same API. The actual
+Graphile worker runs the signed Jira synchronization and scheduled report
+jobs. Synthetic Jira returns one issue per project through the existing
+connector. The rehearsal checks overlapping work and verifies completed
+connector records and report receipts for all 200 projects.
+
 Creation is atomic, including all records, the receipt and sanitized audit event.
 Use parent-portfolio then current-grant locking, followed by existing programme
 and creation-receipt access; project detail uses project then current-grant locks,
