@@ -24,9 +24,10 @@ it("loads core portfolio data for 20 concurrent readers at the Release 1 referen
 
   const config = loadConfig(process.env), db = createDatabase(url.toString());
   const customerId = randomUUID(), portfolioId = randomUUID();
-  const users = Array.from({ length: userCount }, (_, index) => `reference-portfolio-reader-${index}`);
-  const actor: Actor = { customerId, subject: users[0]!, roles: ["portfolio_manager"] };
-  const administrator: Actor = { ...actor, roles: ["pmo_admin"] };
+  const users = Array.from({ length: userCount }, (_, index): Actor => ({
+    customerId, subject: `reference-portfolio-reader-${index}`, roles: [index === 0 ? "pmo_admin" : "portfolio_manager"],
+  }));
+  const administrator = users[0]!;
   const canonical = new DatabaseCanonicalProjectRepository(db);
   const projects = new DatabaseProjectRepository(db);
   const updates = new DatabaseProjectUpdateRepository(db);
@@ -34,15 +35,12 @@ it("loads core portfolio data for 20 concurrent readers at the Release 1 referen
   try {
     await db.customer.create({ data: { id: customerId, name: "Synthetic reference customer" } });
     await db.portfolio.create({ data: { id: portfolioId, customerId, name: "Synthetic reference portfolio" } });
-    await db.accessGrant.createMany({ data: users.map((subject) => ({
-      customerId, subject, scopeId: portfolioId, scopeType: "portfolio", role: "portfolio_manager",
+    await db.accessGrant.createMany({ data: users.map(({ subject, roles }) => ({
+      customerId, subject, scopeId: portfolioId, scopeType: "portfolio", role: roles[0]!,
     })) });
-    await db.accessGrant.create({ data: {
-      customerId, subject: administrator.subject, scopeId: portfolioId, scopeType: "portfolio", role: "pmo_admin",
-    } });
     for (let index = 0; index < projectCount; index++) {
       const fixture = canonicalFixture(portfolioId);
-      const project = await canonical.createProject(actor, {
+      const project = await canonical.createProject(administrator, {
         ...fixture,
         name: `Synthetic reference project ${index + 1}`,
         workItems: Array.from({ length: workItemsPerProject }, (_, workItemIndex) => ({
@@ -59,7 +57,7 @@ it("loads core portfolio data for 20 concurrent readers at the Release 1 referen
     }
     expect(await db.project.count({ where: { customerId } })).toBe(projectCount);
     expect(await db.workItem.count({ where: { customerId } })).toBe(projectCount * workItemsPerProject);
-    const projectIds = (await projects.listProjects(actor)).map(({ id }) => id);
+    const projectIds = (await projects.listProjects(administrator)).map(({ id }) => id);
     expect(projectIds).toHaveLength(projectCount);
     const firstFreshnessPage = [...projectIds].sort().slice(0, portfolioUpdatePageSize);
 
@@ -68,8 +66,8 @@ it("loads core portfolio data for 20 concurrent readers at the Release 1 referen
     await app.listen(0, "127.0.0.1");
     const origin = await app.getUrl();
     const secret = new TextEncoder().encode(config.SESSION_SECRET);
-    const headers = await Promise.all(users.map(async (subject) => ({
-      Authorization: "Bearer " + await new SignJWT({ roles: actor.roles })
+    const headers = await Promise.all(users.map(async ({ subject, roles }) => ({
+      Authorization: "Bearer " + await new SignJWT({ roles })
         .setProtectedHeader({ alg: "HS256" }).setIssuer("pdaa:local").setAudience("pdaa:api")
         .setSubject(subject).setIssuedAt().setExpirationTime("5m").sign(secret),
     })));
