@@ -50,7 +50,7 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     enabled: asked && isCurrent(), retry: false, refetchOnWindowFocus: "always",
     queryFn: async () => {
       const comparison = priorSnapshotId ? `?priorSnapshotId=${encodeURIComponent(priorSnapshotId)}` : "";
-      const data = decodeAtlasLeadershipAnswer(await request(`/projects/${projectId}/atlas-leadership-answer${comparison}`, undefined, 8192), projectId);
+      const data = decodeAtlasLeadershipAnswer(await request(`/projects/${projectId}/atlas-leadership-answer${comparison}`, undefined, 16384), projectId);
       if (!data || (data.priorSnapshot?.id ?? null) !== priorSnapshotId) throw new Error("Atlas leadership answer unavailable");
       return data;
     },
@@ -90,6 +90,8 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const commentClaim = receipt && detailClaims?.find(({ kind }) => kind === "PM_COMMENT");
   const escalationClaim = escalation && detailClaims?.find(({ kind }) => kind === "PM_ESCALATION");
   const clarificationClaim = clarification && detailClaims?.find(({ kind }) => kind === "UPDATE_CLARIFICATION");
+  const integrationClaim = integration && detailClaims?.find(({ kind }) => kind === "INTEGRATION_START");
+  const forecastClaim = schedule && integrationClaim && blocker && detailClaims?.find(({ kind }) => kind === "FORECAST_INFERENCE");
   const prior = answer?.priorSnapshot;
   const scheduleRef = `atlas-schedule-${projectId}`;
   const freshnessRef = `atlas-update-freshness-${updateClaim?.evidenceIds[0]}`;
@@ -114,8 +116,10 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
   const currentClarification = askPm.variables?.scope === scope && askPm.variables.scheduleRevision === schedule?.revision &&
     askPm.variables.asOf === answer?.asOf;
   const askedPmForSchedule = currentClarification && askPm.isSuccess;
-  const movement = (schedule && answer?.receiptClaims?.find(({ kind }) => kind === "REVIEWED_SCHEDULE")?.claimText)
-    || atlasScheduleMovementText(days);
+  const movementClaim = schedule && (answer?.receiptClaims?.find(({ kind }) => kind === "REVIEWED_SCHEDULE") ??
+    detailClaims?.find(({ kind }) => kind === "CANONICAL_SCHEDULE"));
+  const scheduleReceipt = schedule && !spreadsheet ? answer?.canonicalCreationReceiptId : undefined;
+  const hasScheduleEvidence = Boolean(movementClaim || scheduleReceipt);
   const pmClaim = assessment && answer?.receiptClaims?.find(({ kind }) => kind === "PM_DELAY_ASSESSMENT");
 
   return <><section className="panel" aria-label="Atlas leadership answer">
@@ -139,13 +143,14 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
     {asked && query.isFetching && <p role="status">Checking Atlas evidence…</p>}
     {asked && query.isError && <Message error>The Atlas answer is unavailable.</Message>}
     {answer && <div aria-live="polite">
-      <p>{movement} {schedule && <a href={`#${scheduleRef}`}>Schedule evidence</a>}</p>
+      <p>{movementClaim?.claimText ?? atlasScheduleMovementText(null)}
+        {hasScheduleEvidence && <> <a href={`#${scheduleRef}`}>Schedule evidence</a></>}</p>
       {updateClaim && <p>{updateClaim.claimText}{" "}
         {clarificationClaim && `${clarificationClaim.claimText} `}
         <a href={`#${freshnessRef}`}>Update freshness evidence</a></p>}
-      {integration && <p>Integration testing started late. <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
+      {integrationClaim && <p>{integrationClaim.claimText} <a href={`#${integrationRef}`}>Integration start evidence</a></p>}
       {blocker && <p>{blocker.claim.claimText} <a href={`#${blockerRef}`}>Jira blocker evidence</a></p>}
-      {schedule && blocker && answer.forecastInference && <p><strong>Agent inference.</strong> The open integration blocker may still affect the forecast.
+      {forecastClaim && <p><strong>Agent inference.</strong> {forecastClaim.claimText}
         {" "}<a href={`#${scheduleRef}`}>Schedule</a> · <a href={`#${integrationRef}`}>Integration start</a> · <a href={`#${blockerRef}`}>Open blocker</a>
       </p>}
       {replyClaim && <p>{replyClaim.claimText}{" "}
@@ -178,15 +183,17 @@ export function AtlasLeadershipAnswer({ projectId, scope, request, isCurrent }: 
       <h3>Evidence</h3>
       <p>Checked at {answer.asOf}.</p>
       <ul>
-        {schedule && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
+        {schedule && hasScheduleEvidence && <li id={scheduleRef} tabIndex={-1}>{spreadsheet ? "Atlas project" : "Synthetic canonical schedule"} revision {schedule.revision}. Baseline {schedule.baseline ?? "unknown"}. Forecast {schedule.forecast ?? "unknown"}.
           {spreadsheet && <> Reviewed portfolio CSV receipt {spreadsheet.receiptId}, recorded at {spreadsheet.reviewedAt}.</>}
+          {scheduleReceipt && <> Creation receipt {scheduleReceipt}.</>}
         </li>}
         {freshness && updateClaim && <li id={freshnessRef} tabIndex={-1}>Update assessment {updateClaim.evidenceIds[0]}. Assessed at {updateClaim.assessedAt}.{" "}
           {freshness.sourceDateField === "project.latestValidUpdateAt" ? "Latest verified update" : "Project created"}{" "}
           at {freshness.sourceDate}.
           {updateClaim.evidenceIds[1] && ` Open update obligation ${updateClaim.evidenceIds[1]}.`}
           {clarification && ` Clarification ${clarification.clarificationId} requested at ${clarification.requestedAt}.`}</li>}
-        {integration && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.</li>}
+        {integration && integrationClaim && <li id={integrationRef} tabIndex={-1}>Synthetic integration milestone {integration.milestoneId}. Planned start {integration.planned}. Actual start {integration.actual}.
+          {" "}Creation receipt {answer.canonicalCreationReceiptId}.</li>}
         {blocker && <li id={blockerRef} tabIndex={-1}>Synthetic Jira issue {blocker.issueKey}, recorded in source mapping {blocker.mappingId}. System verified.
           {" "}Evidence {blocker.claim.evidenceIds.join(", ")}.</li>}
         {reply && <li id={replyRef} tabIndex={-1}>Human-confirmed owner reply {reply.responseId}, recorded at {reply.receivedAt}.</li>}

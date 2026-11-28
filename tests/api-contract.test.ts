@@ -28,7 +28,7 @@ import {
   ingestionReceiptReadResultSchema,
 } from "../packages/domain/src/index.js";
 import { buildBlockerAgeAdvice, buildPmActionQueue, composeAtlasDetailClaims, composeAtlasReceiptClaims,
-  ingestionCsvPreviewFormSchema } from "../packages/domain/dist/index.js";
+  ingestionCsvPreviewFormSchema, type AtlasLeadershipAnswer } from "../packages/domain/dist/index.js";
 import { HealthAssessmentError, ProjectUpdateError } from "../packages/domain/dist/index.js";
 import type {
   ScheduleAdviceHealthRepository,
@@ -586,22 +586,23 @@ const projectUpdateRepository: ProjectUpdateRepository = {
     fixtureRevision: 1, recordedAt: "2026-10-01T12:02:00.000Z", result: "SIMULATED" as const })),
   confirmAtlasDelay: vi.fn(async () => ({ ...atlasDelayCommand, id: project.id, confirmedBy: "pm-atlas",
     confirmedAt: "2026-10-01T12:02:30.000Z" })),
-  atlasLeadershipAnswer: vi.fn(async () => ({
-    ...atlasLeadershipFixture,
-    receiptClaims: composeAtlasReceiptClaims(atlasLeadershipFixture),
-    detailClaims: composeAtlasDetailClaims({ ...atlasLeadershipFixture, pmEscalation: atlasPmEscalationFixture }),
-    integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
-    jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248" as const, claim: {
-      claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
-      versionId: project.id, evidenceIds: [project.id], policyRevisionId: project.id, assessedAt: atlasLeadershipFixture.asOf,
-      validUntil: "2026-10-02T12:00:00.000Z",
-      provenance: "SYSTEM_VERIFIED" as const, freshness: "CURRENT" as const, conflict: "NONE" as const,
-      classification: "SYSTEM_VERIFIED" as const,
-    } },
-    forecastInference: { classification: "AGENT_INFERENCE" as const, scheduleRevision: 1,
-      milestoneId: project.id, blockerMappingId: project.id },
-    pmEscalation: atlasPmEscalationFixture,
-  })),
+  atlasLeadershipAnswer: vi.fn(async () => {
+    const facts = {
+      ...atlasLeadershipFixture,
+      canonicalCreationReceiptId: project.id,
+      integrationStart: { milestoneId: project.id, planned: "2026-10-05", actual: "2026-10-08" },
+      jiraBlocker: { mappingId: project.id, issueKey: "ATLAS-248", claim: {
+        claimText: "The synthetic Jira blocker ATLAS-248 is open.", projectId: project.id, factId: project.id,
+        versionId: project.id, evidenceIds: [project.id], policyRevisionId: project.id, assessedAt: atlasLeadershipFixture.asOf,
+        validUntil: "2026-10-02T12:00:00.000Z",
+        provenance: "SYSTEM_VERIFIED", freshness: "CURRENT", conflict: "NONE", classification: "SYSTEM_VERIFIED",
+      } },
+      forecastInference: { classification: "AGENT_INFERENCE", scheduleRevision: 1,
+        milestoneId: project.id, blockerMappingId: project.id },
+      pmEscalation: atlasPmEscalationFixture,
+    } satisfies AtlasLeadershipAnswer;
+    return { ...facts, receiptClaims: composeAtlasReceiptClaims(facts), detailClaims: composeAtlasDetailClaims(facts) };
+  }),
   atlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
   createAtlasManagementSnapshot: vi.fn(async () => atlasManagementFixture),
   requestAtlasReportApproval: vi.fn(async () => atlasReportPendingFixture),

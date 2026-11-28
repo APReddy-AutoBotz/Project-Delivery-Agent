@@ -2,7 +2,7 @@ import { z } from "zod";
 import { canonicalDateSchema, canonicalSubjectSchema } from "./canonical-project.js";
 import { calendarDayDifference } from "./overdue-signals.js";
 import { projectUpdateAssessmentViewSchema } from "./project-updates.js";
-import { leadershipUpdateClaimSchema, matchesLeadershipUpdateClaim, projectDelayClarificationCommandSchema,
+import { leadershipScheduleMovementText, leadershipUpdateClaimSchema, matchesLeadershipUpdateClaim, projectDelayClarificationCommandSchema,
   projectDelayClarificationSchema, projectLeadershipScheduleSchema, settledLeadershipClaimSchema } from "./project-leadership-answer.js";
 import { projectReportApprovalRequestSchema, projectReportDecisionSchema, projectReportVersionSchema } from "./project-management-draft.js";
 
@@ -139,8 +139,7 @@ export function composeAtlasReceiptClaims(facts: AtlasLeadershipFacts) {
     ...scope, kind: "REVIEWED_SCHEDULE", sourceId: scheduleCitation.sourceId,
     evidenceIds: [scheduleCitation.receiptId], validUntil: scheduleCitation.availableUntil,
     provenance: "SYSTEM_VERIFIED", classification: "SYSTEM_VERIFIED",
-    claimText: days === 0 ? "The baseline and forecast dates match."
-      : `The forecast is ${Math.abs(days)} ${Math.abs(days) === 1 ? "day" : "days"} ${days > 0 ? "later" : "earlier"} than the baseline.`,
+    claimText: leadershipScheduleMovementText(days),
   });
   if (ownerReply && delayAssessment && receipt) {
     const validUntil = scheduleCitation && Date.parse(scheduleCitation.availableUntil) < Date.parse(ownerReply.availableUntil)
@@ -151,17 +150,19 @@ export function composeAtlasReceiptClaims(facts: AtlasLeadershipFacts) {
       claimText: `The PM confirmed that delayed API access caused the go-live delay. The PM assessed forecast confidence as ${delayAssessment.confidence.toLowerCase()}.`,
     });
   }
-  return atlasReceiptClaimsSchema.parse(claims);
+  const parsed = atlasReceiptClaimsSchema.safeParse(claims);
+  return parsed.success ? parsed.data : [];
 }
 
 const atlasDetailClaimSchema = z.strictObject({
-  kind: z.enum(["OWNER_ACCESS", "PM_COMMENT", "PM_ESCALATION", "UPDATE_CLARIFICATION"]),
-  projectId: z.uuid(), asOf: z.iso.datetime(), validUntil: z.iso.datetime(),
+  kind: z.enum(["OWNER_ACCESS", "PM_COMMENT", "PM_ESCALATION", "UPDATE_CLARIFICATION",
+    "CANONICAL_SCHEDULE", "INTEGRATION_START", "FORECAST_INFERENCE"]),
+  projectId: z.uuid(), asOf: z.iso.datetime(), validUntil: z.iso.datetime().nullable(),
   claimText: z.string().min(1).max(200),
-  evidenceIds: z.array(z.uuid()).min(1).max(3),
-  provenance: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED"]),
+  evidenceIds: z.array(z.uuid()).min(1).max(67),
+  provenance: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED", "AGENT_INFERENCE"]),
   freshness: z.literal("CURRENT"), conflict: z.literal("NONE"),
-  classification: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED"]),
+  classification: z.enum(["SYSTEM_VERIFIED", "HUMAN_CONFIRMED", "AGENT_INFERENCE"]),
 });
 
 const atlasLeadershipAnswerFactsSchema = atlasLeadershipFactsSchema.extend({
@@ -182,11 +183,12 @@ const atlasLeadershipAnswerFactsSchema = atlasLeadershipFactsSchema.extend({
     path: ["obligationId"], message: "An open obligation requires its evidence ID",
   }).nullable().optional(),
   updateClaim: leadershipUpdateClaimSchema.nullable().optional(),
+  canonicalCreationReceiptId: z.uuid().optional(),
   integrationStart: z.strictObject({
     milestoneId: z.uuid(),
     planned: z.iso.date(),
     actual: z.iso.date(),
-  }).nullable(),
+  }).refine(({ planned, actual }) => planned < actual).nullable(),
   jiraBlocker: z.strictObject({
     mappingId: z.uuid(),
     issueKey: z.literal(atlasJiraBlockerKey),
@@ -211,14 +213,18 @@ const atlasLeadershipAnswerFactsSchema = atlasLeadershipFactsSchema.extend({
 });
 
 export function composeAtlasDetailClaims(facts: Pick<z.infer<typeof atlasLeadershipAnswerFactsSchema>,
-  "projectId" | "asOf" | "ownerReply" | "receipt" | "pmEscalation" | "updateFreshness">) {
-  const { projectId, asOf, ownerReply, receipt, pmEscalation, updateFreshness } = facts;
+  "projectId" | "asOf" | "ownerReply" | "receipt" | "pmEscalation" | "updateFreshness" | "canonicalCreationReceiptId" |
+  "schedule" | "scheduleCitation" | "integrationStart" | "forecastInference"> & {
+    jiraBlocker: { mappingId: string; claim: { evidenceIds: string[]; validUntil: string | null } } | null;
+  }) {
+  const { projectId, asOf, ownerReply, receipt, pmEscalation, updateFreshness, canonicalCreationReceiptId,
+    schedule, scheduleCitation, integrationStart, jiraBlocker, forecastInference } = facts;
   type DetailClaim = z.infer<typeof atlasDetailClaimSchema>;
   const claims: DetailClaim[] = [];
-  function add(kind: DetailClaim["kind"], claimText: string, evidenceIds: string[], validUntil: string,
+  function add(kind: DetailClaim["kind"], claimText: string, evidenceIds: string[], validUntil: string | null,
     provenance: DetailClaim["provenance"] = "SYSTEM_VERIFIED") {
-    if (Date.parse(validUntil) > Date.parse(asOf)) claims.push({
-      kind, projectId, asOf, validUntil, claimText, evidenceIds, provenance,
+    if (validUntil === null || Date.parse(validUntil) > Date.parse(asOf)) claims.push({
+      kind, projectId, asOf, validUntil, claimText, evidenceIds: [...new Set(evidenceIds)], provenance,
       freshness: "CURRENT", conflict: "NONE", classification: provenance,
     });
   }
@@ -238,20 +244,43 @@ export function composeAtlasDetailClaims(facts: Pick<z.infer<typeof atlasLeaders
     add("UPDATE_CLARIFICATION", `A clarification about the ${fact} is open.`,
       [clarification.clarificationId, updateFreshness.assessmentId, updateFreshness.obligationId], clarification.availableUntil);
   }
+  const movement = reviewedMovementDays(schedule);
+  if (canonicalCreationReceiptId) {
+    if (!scheduleCitation && movement !== null)
+      add("CANONICAL_SCHEDULE", leadershipScheduleMovementText(movement), [canonicalCreationReceiptId], null);
+    if (integrationStart) add("INTEGRATION_START", "Integration testing started late.",
+      [integrationStart.milestoneId, canonicalCreationReceiptId], null);
+    if (forecastInference && schedule && movement !== null && movement > 0 && integrationStart && jiraBlocker &&
+        forecastInference.scheduleRevision === schedule.revision && forecastInference.milestoneId === integrationStart.milestoneId &&
+        forecastInference.blockerMappingId === jiraBlocker.mappingId) {
+      const blockerExpiry = jiraBlocker.claim.validUntil;
+      const scheduleExpiry = scheduleCitation?.availableUntil;
+      const validUntil = scheduleExpiry && (!blockerExpiry || Date.parse(scheduleExpiry) < Date.parse(blockerExpiry))
+        ? scheduleExpiry : blockerExpiry;
+      add("FORECAST_INFERENCE", "The open integration blocker may still affect the forecast.",
+        [scheduleCitation?.receiptId ?? canonicalCreationReceiptId, integrationStart.milestoneId,
+          canonicalCreationReceiptId, ...jiraBlocker.claim.evidenceIds], validUntil, "AGENT_INFERENCE");
+    }
+  }
   return claims;
 }
 
 export const atlasLeadershipAnswerSchema = atlasLeadershipAnswerFactsSchema.extend({
-  detailClaims: z.array(atlasDetailClaimSchema).max(4).optional(),
+  detailClaims: z.array(atlasDetailClaimSchema).max(7).optional(),
 }).refine(({ jiraBlocker, projectId, asOf }) => !jiraBlocker ||
   (jiraBlocker.claim.projectId === projectId && jiraBlocker.claim.assessedAt === asOf))
-  .refine(({ scheduleCitation, schedule }) => {
-    if (!scheduleCitation) return true;
+  .refine(({ scheduleCitation, schedule, canonicalCreationReceiptId }) => {
+    if (!scheduleCitation && !canonicalCreationReceiptId) return true;
     const days = reviewedMovementDays(schedule);
-    return days !== null && days === schedule?.movementDays;
+    return scheduleCitation ? days !== null && days === schedule?.movementDays : !schedule || days === schedule.movementDays;
   })
   .refine((answer) => JSON.stringify(answer.receiptClaims ?? []) === JSON.stringify(composeAtlasReceiptClaims(answer)))
-  .refine((answer) => JSON.stringify(answer.detailClaims ?? []) === JSON.stringify(composeAtlasDetailClaims(answer)))
+  .refine((answer) => {
+    const expected = composeAtlasDetailClaims(answer);
+    return (!answer.integrationStart || Boolean(answer.canonicalCreationReceiptId)) &&
+      (!answer.forecastInference || expected.some(({ kind }) => kind === "FORECAST_INFERENCE")) &&
+      JSON.stringify(answer.detailClaims ?? []) === JSON.stringify(expected);
+  })
   .refine(({ projectId, asOf, updateFreshness, updateClaim }) =>
     matchesLeadershipUpdateClaim({ projectId, asOf }, updateFreshness ?? null, updateClaim ?? null));
 export type AtlasLeadershipAnswer = z.infer<typeof atlasLeadershipAnswerSchema>;

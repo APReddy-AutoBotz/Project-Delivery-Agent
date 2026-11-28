@@ -365,22 +365,24 @@ function matchesAtlasReceiptClaims(value: unknown, answer: AtlasLeadershipFacts)
 }
 
 function matchesAtlasDetailClaims(detailClaims: unknown, answer: AtlasLeadershipAnswer) {
-  const { ownerReply, receipt, pmEscalation, updateFreshness } = answer;
+  const { ownerReply, receipt, pmEscalation, updateFreshness, canonicalCreationReceiptId,
+    schedule, scheduleCitation, integrationStart, jiraBlocker, forecastInference } = answer;
   const claims = detailClaims === undefined ? [] : detailClaims;
-  if (!Array.isArray(claims) || !dense(claims, claims.length, 4)) return false;
+  if (!Array.isArray(claims) || !dense(claims, claims.length, 7)) return false;
   const entries: unknown[] = claims;
   let index = 0;
-  function matches(kind: string, text: string, evidenceIds: string[], validUntil: string, provenance = "SYSTEM_VERIFIED") {
-    if (Date.parse(validUntil) <= Date.parse(answer.asOf)) return true;
+  function matches(kind: string, text: string, evidenceIds: string[], validUntil: string | null, provenance = "SYSTEM_VERIFIED") {
+    if (validUntil !== null && Date.parse(validUntil) <= Date.parse(answer.asOf)) return false;
     const claim = entries[index++];
     if (!object(claim)) return false;
     const evidence = claim.evidenceIds;
+    const ids = [...new Set(evidenceIds)];
     return keys(claim,
       ["kind", "projectId", "asOf", "validUntil", "claimText", "evidenceIds", "provenance", "freshness", "conflict", "classification"]) &&
       claim.kind === kind && claim.projectId === answer.projectId && claim.asOf === answer.asOf &&
       claim.validUntil === validUntil && claim.claimText === text && claim.provenance === provenance &&
       claim.classification === provenance && claim.freshness === "CURRENT" && claim.conflict === "NONE" &&
-      dense(evidence, evidenceIds.length, evidenceIds.length) && evidenceIds.every((id, i) => id === evidence[i]);
+      dense(evidence, ids.length, ids.length) && ids.every((id, i) => id === evidence[i]);
   }
   if (ownerReply) {
     if (!matches("OWNER_ACCESS",
@@ -399,15 +401,33 @@ function matchesAtlasDetailClaims(detailClaims: unknown, answer: AtlasLeadership
       [clarification.clarificationId, updateFreshness.assessmentId, updateFreshness.obligationId], clarification.availableUntil))
       return false;
   }
+  const movement = schedule && scheduleMovement(schedule);
+  if (canonicalCreationReceiptId) {
+    if (!scheduleCitation && movement !== null && !matches("CANONICAL_SCHEDULE", atlasScheduleMovementText(movement),
+      [canonicalCreationReceiptId], null)) return false;
+    if (integrationStart && !matches("INTEGRATION_START", "Integration testing started late.",
+      [integrationStart.milestoneId, canonicalCreationReceiptId], null)) return false;
+    if (forecastInference && integrationStart && jiraBlocker) {
+      const blockerExpiry = jiraBlocker.claim.validUntil;
+      const scheduleExpiry = scheduleCitation?.availableUntil;
+      const validUntil = scheduleExpiry && (!blockerExpiry || Date.parse(scheduleExpiry) < Date.parse(blockerExpiry))
+        ? scheduleExpiry : blockerExpiry;
+      if (!matches("FORECAST_INFERENCE", "The open integration blocker may still affect the forecast.",
+        [scheduleCitation?.receiptId ?? canonicalCreationReceiptId, integrationStart.milestoneId,
+          canonicalCreationReceiptId, ...jiraBlocker.claim.evidenceIds], validUntil, "AGENT_INFERENCE")) return false;
+    }
+  }
   return index === entries.length;
 }
 
 export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): AtlasLeadershipAnswer | null {
   if (!object(value)) return null;
   const { integrationStart, jiraBlocker, forecastInference, pmEscalation, priorSnapshot,
-    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, ...facts } = value;
+    updateFreshness, updateClaim, delayClarificationState, receiptClaims, detailClaims, canonicalCreationReceiptId, ...facts } = value;
   const answer = decodeAtlasLeadershipFacts(facts, projectId);
   if (!answer || !matchesAtlasReceiptClaims(receiptClaims, answer)) return null;
+  if (canonicalCreationReceiptId !== undefined && (!uuid(canonicalCreationReceiptId) ||
+      (answer.schedule && scheduleMovement(answer.schedule) !== answer.schedule.movementDays))) return null;
   if (delayClarificationState !== undefined && (!answer.schedule || (answer.schedule.movementDays ?? 0) <= 0 || answer.delayAssessment ||
       typeof delayClarificationState !== "string" || !["AVAILABLE", "REQUESTED", "RESOLVED"].includes(delayClarificationState))) return null;
   if (updateFreshness !== null && updateFreshness !== undefined && (!object(updateFreshness) ||
@@ -428,7 +448,7 @@ export function decodeAtlasLeadershipAnswer(value: unknown, projectId: string): 
       !instant(clarification.requestedAt) || !instant(clarification.availableUntil) ||
       Date.parse(clarification.requestedAt) > Date.parse(answer.asOf) || Date.parse(clarification.availableUntil) <= Date.parse(answer.asOf)))
     return null;
-  if (integrationStart !== null && (!object(integrationStart) ||
+  if (integrationStart !== null && (!canonicalCreationReceiptId || !object(integrationStart) ||
       !keys(integrationStart, ["milestoneId", "planned", "actual"]) || !uuid(integrationStart.milestoneId) ||
       !date(integrationStart.planned) || !date(integrationStart.actual) || integrationStart.actual <= integrationStart.planned))
     return null;

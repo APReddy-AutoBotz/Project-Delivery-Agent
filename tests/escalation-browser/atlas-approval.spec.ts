@@ -98,10 +98,12 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
   const seededSchedule = await request.post(projectPath + "/leadership-answer", { headers: leaderHeaders,
     data: { question: "What is the schedule status of this project?" } });
   expect(seededSchedule.status()).toBe(200);
-  expect(await seededSchedule.json()).toMatchObject({
+  const seeded = await seededSchedule.json();
+  expect(seeded).toMatchObject({
     schedule: { baseline: null, forecast: null, movementDays: null },
   });
   expect(before).toMatchObject({
+    canonicalCreationReceiptId: seeded.scheduleClaim.evidenceIds[0],
     schedule: { baseline: "2026-10-15", forecast: "2026-10-29", movementDays: 14 }, ownerReply: null, receipt: null,
     updateFreshness: { state: "STALE", sourceDateField: "project.latestValidUpdateAt", sourceDate: fixture.lastPmUpdateAt,
       openObligation: true },
@@ -470,6 +472,10 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     expect.objectContaining({ kind: "PM_ESCALATION", evidenceIds: [fixture.escalation.requestId] }),
     expect.objectContaining({ kind: "UPDATE_CLARIFICATION", evidenceIds: [complete.updateFreshness.activeClarification.clarificationId,
       complete.updateClaim.evidenceIds[0], authorizedUpdate.obligation.id] }),
+    expect.objectContaining({ kind: "INTEGRATION_START", evidenceIds: [complete.integrationStart.milestoneId, seeded.scheduleClaim.evidenceIds[0]],
+      validUntil: null, classification: "SYSTEM_VERIFIED" }),
+    expect.objectContaining({ kind: "FORECAST_INFERENCE", evidenceIds: [spreadsheet.receiptId, complete.integrationStart.milestoneId,
+      seeded.scheduleClaim.evidenceIds[0], ...complete.jiraBlocker.claim.evidenceIds], classification: "AGENT_INFERENCE" }),
   ]);
   expect(JSON.stringify(complete)).not.toContain(fixture.escalation.locator);
   expect(JSON.stringify(complete)).not.toContain(fixture.sourceMarkerB);
@@ -482,6 +488,7 @@ test("Atlas reply, PM delay evidence and distributed final report share the same
     const withoutBlocker = await withheld.json();
     expect(withoutBlocker).toMatchObject({ jiraBlocker: null, schedule: complete.schedule });
     expect(withoutBlocker).not.toHaveProperty("forecastInference");
+    expect(withoutBlocker.detailClaims).not.toContainEqual(expect.objectContaining({ kind: "FORECAST_INFERENCE" }));
     await answer.getByRole("button", { name: "Why is Atlas delayed?" }).click();
     await expect(answer.getByRole("link", { name: "Schedule evidence" })).toBeVisible();
     await expect(answer.getByText("The synthetic Jira blocker ATLAS-248 is open.", { exact: true })).toHaveCount(0);
