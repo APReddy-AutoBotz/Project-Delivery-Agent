@@ -59,11 +59,13 @@ export function installConnectorRoutes(
     const req = request;
     const pathname = req.path;
     const rawBody = req.rawBody;
+    const projectUpdateTask = pathname === "/internal/project-updates/scan" ||
+      pathname === "/internal/project-updates/process" || pathname === "/internal/project-updates/purge";
     if (req.method !== "POST" || (!pathname.startsWith("/internal/connectors/") && !pathname.startsWith("/internal/project-updates/") && !pathname.startsWith("/webhooks/jira/"))) {
       next();
       return;
     }
-    if (pathname !== "/internal/connectors/run" && pathname !== "/internal/project-updates/scan" && pathname !== "/internal/project-updates/process" && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
+    if (pathname !== "/internal/connectors/run" && !projectUpdateTask && !/^\/webhooks\/jira\/[0-9a-f-]{36}$/i.test(pathname)) {
       fixedError(response, 404, "Resource unavailable");
       return;
     }
@@ -115,7 +117,7 @@ export function installConnectorRoutes(
       }
       return;
     }
-    if (pathname === "/internal/project-updates/scan" || pathname === "/internal/project-updates/process" || pathname === "/internal/project-updates/purge") {
+    if (projectUpdateTask) {
       const headers = req.headers as Record<string, string | string[] | undefined>;
       if (!config.projectUpdateTaskKeys || !projectUpdates || !verifyConnectorTaskRequest({
         method: req.method,
