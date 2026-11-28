@@ -44,6 +44,43 @@ describe("connector webhook route authentication order", () => {
     expect(runOne).toHaveBeenCalledTimes(1);
   });
 
+  it("dispatches the signed scheduled content purge once", async () => {
+    const handlers: unknown[] = [];
+    const app = { use: (handler: unknown) => handlers.push(handler) } as unknown as NestExpressApplication;
+    const runtime = {
+      acceptTaskNonce: vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false),
+      acceptWebhook: vi.fn(),
+    };
+    const keyRing = {
+      currentKeyId: "retention-test",
+      keys: { "retention-test": Buffer.alloc(32, 17).toString("base64url") },
+    };
+    const purgeCaptureContent = vi.fn().mockResolvedValue(2);
+    installConnectorRoutes(app, { projectUpdateTaskKeys: keyRing } as Config, runtime,
+      {} as never, { purgeCaptureContent } as never);
+    const path = "/internal/project-updates/purge";
+    const rawBody = Buffer.from("{}");
+    const headers: Record<string, string> = { "content-type": "application/json" };
+    const req = { method: "POST", path, url: path, rawBody, headers, get: (name: string) => headers[name] };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    const handler = handlers[0] as (request: typeof req, response: typeof res, next: () => void) => Promise<void>;
+    const next = vi.fn();
+
+    await handler(req, res, next);
+    expect(res.status).toHaveBeenLastCalledWith(401);
+    expect(runtime.acceptTaskNonce).not.toHaveBeenCalled();
+    expect(purgeCaptureContent).not.toHaveBeenCalled();
+
+    Object.assign(headers, signConnectorTaskRequest({ method: "POST", path, body: rawBody, keyRing }));
+    await handler(req, res, next);
+    expect(res.status).toHaveBeenLastCalledWith(200);
+    expect(res.json).toHaveBeenLastCalledWith({ processed: 2 });
+    await handler(req, res, next);
+    expect(res.status).toHaveBeenLastCalledWith(409);
+    expect(purgeCaptureContent).toHaveBeenCalledTimes(1);
+    expect(next).not.toHaveBeenCalled();
+  });
+
   it("passes bounded raw bytes to signature verification before parsing JSON", async () => {
     const middleware: unknown[] = [];
     const app = {
