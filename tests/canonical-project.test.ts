@@ -92,6 +92,15 @@ describe("INT-MOD-001 / FR-MOD-001/002/004/005/007 canonical request invariants"
     }
   });
   it("bounds individual collections and total aggregate size", () => {
+    const reference = fixture();
+    const item = reference.workItems[0]!;
+    reference.workItems.push(...Array.from({ length: 99 }, (_, index) => ({
+      ...item, key: "SCALE-" + index,
+    })));
+    expect(canonicalProjectCreateSchema.safeParse(reference).success).toBe(true);
+    reference.workItems.push({ ...item, key: "SCALE-OVERFLOW" });
+    expect(canonicalProjectCreateSchema.safeParse(reference).success).toBe(false);
+
     const v = fixture();
     v.sprints = Array.from({ length: 51 }, (_, i) => ({
       ...v.sprints[0],

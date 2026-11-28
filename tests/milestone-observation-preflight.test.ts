@@ -24,6 +24,8 @@ describe("canonical milestone preflight metadata", () => {
     for (const change of [{ milestonesActual: 2 }, { milestonesActual: 51 },
       { milestonesCount: -1 }, { milestonesCount: 1.5 }])
       expect(await preflight(tx([{ ...row(), ...change }]), customer, project)).toBe(false);
+    expect(await preflight(tx([{ ...row(), workItemsCount: 100, workItemsActual: 100 }]), customer, project)).toBe(true);
+    expect(await preflight(tx([{ ...row(), workItemsCount: 101, workItemsActual: 101 }]), customer, project)).toBe(false);
     const large = { ...row(), responsibilitiesCount: 50, responsibilitiesActual: 50,
       sprintsCount: 50, sprintsActual: 50, milestonesCount: 50, milestonesActual: 50,
       workItemsCount: 50, workItemsActual: 50, raidItemsCount: 1, raidItemsActual: 1 };

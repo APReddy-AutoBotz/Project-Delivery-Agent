@@ -6,6 +6,8 @@ import {
   canonicalRaidReopenResultSchema,
   canonicalProgrammeCreateSchema,
   canonicalProjectDetailSchema,
+  canonicalMilestoneLimit,
+  canonicalWorkItemLimit,
   canonicalDateFields,
   emptyCanonicalDates,
   CanonicalProjectError,
@@ -598,12 +600,12 @@ export class DatabaseCanonicalProjectRepository
         tx.milestone.findMany({
           where: scope,
           orderBy: { key: "asc" },
-          take: 51,
+          take: canonicalMilestoneLimit + 1,
         }),
         tx.workItem.findMany({
           where: scope,
           orderBy: { key: "asc" },
-          take: 51,
+          take: canonicalWorkItemLimit + 1,
         }),
         tx.requiredWorkItem.findMany({
           where: scope,

@@ -57,10 +57,29 @@ Every child has a composite customer/project foreign key and every child relatio
 uses a composite same-project key. Storage checks constrain enums, lengths,
 date ordering, target cardinality and receipt target type. Typed columns, rather
 than arbitrary JSON payloads, represent business records. API and repository
-schemas are strict and bounded: at most 50 rows per collection and at most 200
-child records across an aggregate. Dates use real Gregorian YYYY-MM-DD values,
+schemas initially allowed 50 rows per collection and up to 200 child records
+across an aggregate. Dates use real Gregorian YYYY-MM-DD values,
 with no timezone conversion or inference. Missing dates remain null. An end date
 before its corresponding start is rejected; no cross-category ordering is assumed.
+
+### R1 reference work-item capacity
+
+NFR-SCL-001 allows the reference workload to persist 20,000 canonical work
+items across 200 active projects. The creation form, API, database constraint,
+health assessment, and milestone preflight accept 100 work items per project.
+The aggregate limit, relationship limits, authorization and evidence rules
+remain in force. The existing canonical integration case creates and reads
+100 work items with 50 milestones, calculates health and verifies the schedule
+suggestions and PM queue for the same project.
+Each stored health payload is bounded to 448 KiB so that all schedule
+signals fit within the browser's existing response budget. Clean install,
+upgrade and recovery use the existing migration ledger checks.
+
+This change enables the reference dataset. AC-PERF-001 still requires a
+timed run with synchronization and report generation. The migration is
+forward-only. A previous application build can read projects with up to
+50 work items. Once a larger project exists, use a forward fix or the
+documented backup recovery procedure for a version rollback.
 
 Creation is atomic, including all records, the receipt and sanitized audit event.
 Use parent-portfolio then current-grant locking, followed by existing programme

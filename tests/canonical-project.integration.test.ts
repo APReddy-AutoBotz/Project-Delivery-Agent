@@ -4,6 +4,8 @@ import { SignJWT, generateKeyPair } from "jose";
 import {
   createDatabase,
   DatabaseCanonicalProjectRepository,
+  DatabaseHealthAssessmentRepository,
+  DatabasePmActionQueueRepository,
   DatabaseProjectFactRepository,
   DatabaseProjectRepository,
 } from "../packages/data/dist/index.js";
@@ -18,6 +20,7 @@ import {
 } from "../scripts/acceptance/canonical-projects.mjs";
 import type { Actor } from "../packages/domain/src/index.js";
 import type { Prisma } from "../packages/data/src/generated/prisma/client.js";
+import { decodePmQueue } from "../apps/web/src/pm-queue-decoder.js";
 const url = process.env.PDAA_DATABASE_URL!;
 if (!url || !/^\/pdaa_test_\d+$/.test(new URL(url).pathname))
   throw new Error("Canonical integration requires isolated synthetic database");
@@ -113,6 +116,22 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
   expect(programme.status).toBe(201);
   programmeId = (await programme.json()).id;
   const payload = canonicalFixture(portfolioId, programmeId);
+  const pm: Actor = { customerId, roles: ["project_manager"], subject: "canonical-reference-pm-" + randomUUID() };
+  payload.responsibilities = payload.responsibilities.map((entry) =>
+    entry.role === "PROJECT_MANAGER" ? { ...entry, subject: pm.subject } : entry);
+  const item = payload.workItems[0]!;
+  item.dates = { ...item.dates, forecastStart: null, forecastEnd: "2000-01-01" };
+  payload.workItems.push(...Array.from({ length: 99 }, (_, index) => ({
+    ...item, key: "WI-SCALE-" + index,
+  })));
+  const milestone = payload.milestones[0]!;
+  milestone.dates = { ...milestone.dates, forecastStart: null, forecastEnd: "2000-01-01" };
+  payload.milestones.push(...Array.from({ length: 49 }, (_, index) => ({
+    ...milestone, key: "MS-SCALE-" + index,
+  })));
+  payload.requiredWorkItems.push({
+    milestoneKey: payload.milestones.at(-1)!.key, workItemKey: payload.workItems.at(-1)!.key,
+  });
   const created = await api(manager, "/projects", "POST", payload);
   expect(created.status).toBe(201);
   projectId = (await created.json()).id;
@@ -129,12 +148,31 @@ it("INT-MOD-001: HTTP programme and full project creation retrieve persisted typ
     creation: { by: manager.subject, revision: 1 },
   });
   expect(detail.workItems[0].sprintKey).toBe("SPR-1");
-  expect(detail.requiredWorkItems).toEqual(payload.requiredWorkItems);
+  expect(detail.workItems).toHaveLength(100);
+  expect(detail.milestones).toHaveLength(50);
+  expect(detail.requiredWorkItems).toHaveLength(payload.requiredWorkItems.length);
+  expect(detail.requiredWorkItems).toEqual(expect.arrayContaining(payload.requiredWorkItems));
   expect(detail.responsibilities).toHaveLength(5);
   expect(detail.raidItems.map((r: { kind: string }) => r.kind).sort()).toEqual(
     payload.raidItems.map((r) => r.kind).sort(),
   );
   expect(detail.sourceMappings).toHaveLength(5);
+  const health = new DatabaseHealthAssessmentRepository(db);
+  if (!await health.retention(pmo)) {
+    await health.setRetention(pmo, {
+      contentRetentionHours: 24, auditRetentionHours: 48, idempotencyRetentionHours: 72,
+    }, randomUUID());
+  }
+  const assessment = await health.create(manager, projectId, randomUUID(), randomUUID());
+  expect(assessment.contentAvailable).toBe(true);
+  expect(assessment.input?.signals).toHaveLength(150);
+  await grant(pm, projectId, "project_manager", "project");
+  const suggestions = await health.scheduleSuggestions(pm, projectId);
+  expect(suggestions.items).toHaveLength(151);
+  const queue = await new DatabasePmActionQueueRepository(db).read(pm);
+  expect(queue.projects.map(({ projectId }) => projectId)).toEqual([projectId]);
+  expect(queue.items.filter(({ facet }) => facet === "SCHEDULE")).toHaveLength(151);
+  expect(decodePmQueue(queue).items).toEqual(queue.items);
   const replay = await api(manager, "/projects", "POST", payload);
   expect(replay.status).toBe(201);
   expect(await replay.json()).toEqual({ id: projectId });
